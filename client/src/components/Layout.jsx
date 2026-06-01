@@ -42,7 +42,7 @@ export default function Layout() {
         <AccountBalanceOutlined sx={{ color: '#fff', fontSize: 28 }} />
         <Box>
           <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2 }}>Portail RH</Typography>
-          <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>Acme Corp.</Typography>
+          <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>CROUS-SL</Typography>
         </Box>
       </Box>
 
