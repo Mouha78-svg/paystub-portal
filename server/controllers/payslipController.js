@@ -54,47 +54,298 @@ exports.download = (req, res) => {
   const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
 
   if (!fs.existsSync(filePath)) {
-    // Generate a demo PDF HTML if file not found
-    const html = generateDemoPDF(payslip);
-    res.setHeader('Content-Type', 'text/html');
-    res.setHeader('Content-Disposition', `attachment; filename="${payslip.fichier_pdf.replace('.pdf','.html')}"`);
+    const employee = db.prepare('SELECT * FROM employees WHERE matricule=?').get(payslip.matricule) || {};
+    const ytdRows = db.prepare(
+      'SELECT * FROM payslips WHERE matricule=? AND annee=? ORDER BY ROWID'
+    ).all(payslip.matricule, payslip.annee);
+    const html = generateBulletin(payslip, employee, ytdRows);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${payslip.fichier_pdf.replace('.pdf', '.html')}"`);
     return res.send(html);
   }
 
   res.download(filePath, payslip.fichier_pdf);
 };
 
-function generateDemoPDF(p) {
-  const fmt = n => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(n);
-  return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Bulletin ${p.mois} ${p.annee}</title>
-<style>body{font-family:Georgia,serif;max-width:700px;margin:40px auto;padding:0 24px;color:#111}
-.header{border-bottom:3px solid #1a237e;padding-bottom:16px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-end}
-.company{font-size:24px;font-weight:bold;color:#1a237e}.period{font-size:13px;color:#666;text-align:right}
-.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 32px;background:#f5f7ff;padding:16px;border-radius:8px;margin-bottom:24px}
-.info-item label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;display:block}
-.info-item span{font-size:14px;font-weight:600}
-table{width:100%;border-collapse:collapse;margin-bottom:20px}
-th{background:#1a237e;color:#fff;padding:8px 12px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
-td{padding:10px 12px;font-size:14px;border-bottom:1px solid #eee}
-.net-row td{font-weight:bold;font-size:16px;background:#e8f5e9;color:#1b5e20;border-top:2px solid #1a237e}
-.footer{margin-top:40px;font-size:11px;color:#aaa;text-align:center;border-top:1px solid #eee;padding-top:16px}
-</style></head><body>
-<div class="header"><div><div class="company">Acme Corp. Sénégal</div><div style="font-size:13px;color:#888">Bulletin de Paie</div></div>
-<div class="period"><strong>${p.mois} ${p.annee}</strong><br>Matricule: ${p.matricule}</div></div>
-<div class="info-grid">
-  <div class="info-item"><label>Employé</label><span>${p.prenom} ${p.nom}</span></div>
-  <div class="info-item"><label>Matricule</label><span>${p.matricule}</span></div>
+// ─── Bulletin de Paie — style C.R.O.U.S. ────────────────────────────────────
+
+const MOIS_NUM = {
+  Janvier: '01', Février: '02', Mars: '03', Avril: '04',
+  Mai: '05', Juin: '06', Juillet: '07', Août: '08',
+  Septembre: '09', Octobre: '10', Novembre: '11', Décembre: '12',
+};
+const MOIS_DAYS = {
+  Janvier: 31, Février: 28, Mars: 31, Avril: 30,
+  Mai: 31, Juin: 30, Juillet: 31, Août: 31,
+  Septembre: 30, Octobre: 31, Novembre: 30, Décembre: 31,
+};
+const JOB_MAP = {
+  'Informatique':       { emploi: 'AGENT INFORMATIQUE',    qualif: 'TECH. INFORMATIQUE',   coeff: '1', cat: 'A' },
+  'Ressources Humaines':{ emploi: 'GESTIONNAIRE RH',        qualif: 'AGENT RH',              coeff: '2', cat: 'B' },
+  'Finance':            { emploi: 'GESTIONNAIRE FINANCIER', qualif: 'AGENT FINANCIER',       coeff: '3', cat: 'B' },
+};
+const SENIORITY = { EMP001: [0, 5], EMP002: [2, 3], EMP003: [5, 8] };
+const TRANSPORT = 26000;
+
+function fmt(n) {
+  return Number(n).toLocaleString('fr-FR');
+}
+
+function generateBulletin(p, emp, ytdRows) {
+  const brut        = p.salaire_brut;
+  const net         = p.salaire_net;
+  const cotisations = Math.round(brut + TRANSPORT - net);
+  const irpp        = Math.round(cotisations * (4060 / 4360));
+  const trimf       = cotisations - irpp;
+
+  const ytdBrut        = ytdRows.reduce((s, r) => s + r.salaire_brut, 0);
+  const ytdNet         = ytdRows.reduce((s, r) => s + r.salaire_net, 0);
+  const ytdCotisations = Math.round(ytdRows.reduce(
+    (s, r) => s + Math.round(r.salaire_brut + TRANSPORT - r.salaire_net), 0
+  ));
+
+  const service = emp.service || '';
+  const job     = JOB_MAP[service] || { emploi: 'AGENT', qualif: 'AGENT', coeff: '1', cat: 'A' };
+  const [anc_ans, anc_mois] = SENIORITY[p.matricule] || [0, 1];
+
+  const moisNum = MOIS_NUM[p.mois] || '01';
+  const days    = MOIS_DAYS[p.mois] || 30;
+  const yy      = String(p.annee).slice(-2);
+  const debut   = `01/${moisNum}/${yy}`;
+  const fin     = `${days}/${moisNum}/${yy}`;
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bulletin de Paie – ${p.mois} ${p.annee}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000;background:#fff;padding:22px 30px;max-width:850px;margin:auto}
+.top{display:table;width:100%;border:2px solid #000}
+.org-cell{display:table-cell;border-right:2px solid #000;padding:10px 14px;width:190px;vertical-align:top;line-height:1.8}
+.org-name{font-weight:bold;font-size:12.5px}
+.bul-cell{display:table-cell;padding:8px 18px;vertical-align:top}
+.bul-title{font-size:22px;font-weight:bold;text-align:center;letter-spacing:6px;margin-bottom:10px}
+.it{border-collapse:collapse;width:100%}
+.it td{padding:1px 6px;font-size:10.5px}
+.it td.k{font-weight:bold;width:100px}
+
+.emp-row{display:table;width:100%;border:2px solid #000;border-top:none}
+.emp-left{display:table-cell;padding:8px 12px;border-right:2px solid #000;vertical-align:top}
+.emp-right{display:table-cell;padding:8px 14px;width:220px;vertical-align:top}
+.fr{display:flex;margin-bottom:3px;font-size:10.5px}
+.fk{font-weight:bold;min-width:115px;flex-shrink:0}
+.emp-name{font-size:15px;font-weight:bold;margin-top:12px}
+.emp-city{font-size:11px;margin-top:5px}
+
+.cng{border:2px solid #000;border-top:none;padding:6px 12px}
+table.conges{border-collapse:collapse;font-size:10px}
+table.conges th,table.conges td{border:1px solid #888;padding:2px 10px}
+table.conges th{background:#e0e0e0;text-align:center}
+
+table.pay{width:100%;border-collapse:collapse;border:2px solid #000;border-top:none}
+table.pay th{background:#d0d0d0;border:1px solid #888;padding:3px 5px;font-size:9.5px;text-align:center;vertical-align:middle}
+table.pay td{border:1px solid #ccc;padding:2.5px 6px;font-size:10px}
+table.pay tr.tr{font-weight:bold;background:#ececec}
+.rr{text-align:right}
+
+.bot{border:2px solid #000;border-top:none;padding:8px 12px}
+.bot-tbl{width:100%;border-collapse:collapse}
+.bot-tbl td{vertical-align:top;padding:0}
+.sep{border-right:1px solid #999;padding-right:10px;width:155px}
+.smid{padding:0 10px}
+.snet{width:135px;text-align:center;vertical-align:middle;padding-left:10px}
+table.hrs{border-collapse:collapse;font-size:10px;width:100%}
+table.hrs th,table.hrs td{border:1px solid #888;padding:2px 6px}
+table.hrs th{background:#e0e0e0;text-align:center}
+table.sum{border-collapse:collapse;font-size:10px;width:100%}
+table.sum th,table.sum td{border:1px solid #888;padding:2px 7px}
+table.sum th{background:#e0e0e0;text-align:center}
+.net-box{border:2px solid #000;padding:12px 8px;display:inline-block;width:100%}
+.net-lbl{font-size:10px;font-weight:bold;margin-bottom:6px}
+.net-amt{font-size:22px;font-weight:bold}
+.net-cur{font-size:9.5px;margin-top:3px}
+
+.footer{font-size:8.5px;color:#555;margin-top:8px;border-top:1px solid #ccc;padding-top:5px;text-align:center}
+@media print{body{padding:10px}}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="org-cell">
+    <div class="org-name">C.R.O.U.S.</div>
+    <div class="org-name">SAINT LOUIS</div>
+    <div class="org-name">SAINT LOUIS</div>
+  </div>
+  <div class="bul-cell">
+    <div class="bul-title">BULLETIN &nbsp; DE &nbsp; PAIE</div>
+    <table class="it">
+      <tr>
+        <td class="k">Période du</td><td>${debut} &nbsp; au &nbsp; ${fin}</td>
+        <td class="k" style="padding-left:20px">Matricule</td><td>${p.matricule}</td>
+      </tr>
+      <tr>
+        <td class="k">Paiement le</td><td>${fin} &nbsp; par &nbsp; <em>Virement</em></td>
+        <td class="k" style="padding-left:20px">Ancienneté</td><td>${anc_ans} an(s) et ${anc_mois} mois</td>
+      </tr>
+    </table>
+  </div>
 </div>
-<table>
-  <thead><tr><th>Libellé</th><th style="text-align:right">Montant</th></tr></thead>
+
+<div class="emp-row">
+  <div class="emp-left">
+    <div class="fr"><span class="fk">Conv. coll.</span><span>CONVENTION ETS PUBLICS</span></div>
+    <div class="fr"><span class="fk">Indice</span><span>Niveau</span></div>
+    <div class="fr"><span class="fk">Coefficient</span><span>${job.coeff} &nbsp;&nbsp;&nbsp; Horaire &nbsp; 173,330</span></div>
+    <div class="fr"><span class="fk">Emploi</span><span>${job.emploi}</span></div>
+    <div class="fr"><span class="fk">Qualification</span><span>${job.qualif}</span></div>
+    <div class="fr"><span class="fk">Département</span><span>SERVICE ${service.toUpperCase()}</span></div>
+    <div class="fr"><span class="fk">Catégorie</span><span>${job.cat}</span></div>
+  </div>
+  <div class="emp-right">
+    <div class="emp-name">M &nbsp; ${p.nom.toUpperCase()} &nbsp; ${p.prenom}</div>
+    <div class="emp-city">SAINT-LOUIS</div>
+  </div>
+</div>
+
+<div class="cng">
+  <table class="conges">
+    <thead>
+      <tr><th>Congés</th><th colspan="3">Dates de congés</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Pris</td><td style="text-align:right">0,000</td><td>Du</td><td style="min-width:80px">&nbsp;&nbsp;&nbsp; au &nbsp;&nbsp;&nbsp;</td></tr>
+      <tr><td>Restant</td><td style="text-align:right">0,000</td><td>Du</td><td>&nbsp;&nbsp;&nbsp; au &nbsp;&nbsp;&nbsp;</td></tr>
+      <tr><td>Acquis</td><td style="text-align:right">0,000</td><td>Du</td><td>&nbsp;&nbsp;&nbsp; au &nbsp;&nbsp;&nbsp;</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<table class="pay">
+  <thead>
+    <tr>
+      <th rowspan="2" style="width:38px">N°</th>
+      <th rowspan="2" style="min-width:170px;text-align:left;padding-left:8px">Désignation</th>
+      <th rowspan="2" style="width:52px">Nombre</th>
+      <th rowspan="2" style="width:52px">Base</th>
+      <th rowspan="2" style="width:38px">Taux</th>
+      <th colspan="2">Part salariale</th>
+      <th colspan="2">Part patronale</th>
+      <th rowspan="2" style="width:75px">Montants en<br>Francs</th>
+    </tr>
+    <tr>
+      <th style="width:65px">Gain</th>
+      <th style="width:65px">Retenue</th>
+      <th style="width:38px">Taux</th>
+      <th style="width:65px">Retenue</th>
+    </tr>
+  </thead>
   <tbody>
-    <tr><td>Salaire Brut</td><td style="text-align:right">${fmt(p.salaire_brut)}</td></tr>
-    <tr><td>CNSS (part salariale)</td><td style="text-align:right;color:#c62828">−${fmt(p.salaire_brut * 0.057)}</td></tr>
-    <tr><td>IPRES (retraite)</td><td style="text-align:right;color:#c62828">−${fmt(p.salaire_brut * 0.056)}</td></tr>
-    <tr><td>IR (Impôt sur le revenu)</td><td style="text-align:right;color:#c62828">−${fmt(p.salaire_brut - p.salaire_net - p.salaire_brut*0.113)}</td></tr>
-    <tr class="net-row"><td>Net à Payer</td><td style="text-align:right">${fmt(p.salaire_net)}</td></tr>
+    <tr>
+      <td>10</td><td>Salaire de base mensuel</td>
+      <td></td><td></td><td></td>
+      <td class="rr">${fmt(brut)}</td><td></td><td></td><td></td><td></td>
+    </tr>
+    <tr>
+      <td>230</td><td>*** Salaire Brut Imposable</td>
+      <td></td><td></td><td></td>
+      <td class="rr">${fmt(brut)}</td><td></td><td></td><td></td><td></td>
+    </tr>
+    <tr class="tr">
+      <td></td><td>Total Brut</td>
+      <td></td><td></td><td></td>
+      <td class="rr">${fmt(brut)}</td><td></td><td></td><td></td><td></td>
+    </tr>
+    <tr>
+      <td>1080</td><td>Retenue Impôt sur le Revenu</td>
+      <td></td><td></td><td></td>
+      <td></td><td class="rr">${fmt(irpp)}</td>
+      <td></td><td class="rr">0</td><td></td>
+    </tr>
+    <tr>
+      <td>1090</td><td>Retenue TRIMF</td>
+      <td></td><td></td><td></td>
+      <td></td><td class="rr">${fmt(trimf)}</td>
+      <td></td><td class="rr">0</td><td></td>
+    </tr>
+    <tr class="tr">
+      <td></td><td>Total Cotisations</td>
+      <td></td><td></td><td></td>
+      <td></td><td class="rr">${fmt(cotisations)}</td>
+      <td></td><td class="rr">0</td><td></td>
+    </tr>
+    <tr>
+      <td>1510</td><td>Prime de transport</td>
+      <td></td><td></td><td></td>
+      <td class="rr">${fmt(TRANSPORT)}</td>
+      <td></td><td></td><td></td><td></td>
+    </tr>
   </tbody>
 </table>
-<div class="footer">Document généré automatiquement — ${new Date().toLocaleDateString('fr-FR')} — Acme Corp. Sénégal</div>
-</body></html>`;
+
+<div class="bot">
+  <table class="bot-tbl">
+    <tr>
+      <td class="sep">
+        <table class="hrs">
+          <thead><tr><th></th><th>Période</th><th>Année</th></tr></thead>
+          <tbody>
+            <tr><td>Heures travaillées</td><td class="rr">173</td><td class="rr">520</td></tr>
+            <tr><td>Heures supp.</td><td class="rr">0</td><td class="rr">0</td></tr>
+          </tbody>
+        </table>
+      </td>
+      <td class="smid">
+        <table class="sum">
+          <thead>
+            <tr>
+              <th colspan="2"></th>
+              <th>Salaire brut</th>
+              <th>Charges salariales</th>
+              <th>Charges patronales</th>
+              <th>Avantages en nature</th>
+              <th>Net imposable</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="2" style="font-weight:bold;text-align:center;padding:4px">CFA</td>
+              <td>Période</td>
+              <td class="rr">${fmt(brut)}</td>
+              <td class="rr">${fmt(cotisations)}</td>
+              <td class="rr">0</td>
+              <td class="rr">0</td>
+              <td class="rr">${fmt(brut)}</td>
+            </tr>
+            <tr>
+              <td>Année</td>
+              <td class="rr">${fmt(ytdBrut)}</td>
+              <td class="rr">${fmt(ytdCotisations)}</td>
+              <td class="rr">0</td>
+              <td class="rr">0</td>
+              <td class="rr">${fmt(ytdBrut)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </td>
+      <td class="snet">
+        <div class="net-box">
+          <div class="net-lbl">Net à payer</div>
+          <div class="net-amt">${fmt(net)}</div>
+          <div class="net-cur">Francs</div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<div class="footer">
+  Ce bulletin est établi en Francs CFA. Les valeurs exprimées sont indicatives, calculées au taux de 1,00X &nbsp;|&nbsp;
+  Pour vous aider à faire valoir vos droits, conservez ce bulletin de paie sans limitation de durée.
+</div>
+
+</body>
+</html>`;
 }
