@@ -1,0 +1,12 @@
+{
+  "name": "paystub-portal",
+  "version": "1.0.0",
+  "description": "Portail RH — Bulletins de Salaire",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "start:server": "cd server && npm start",
+    "setup": "npm run install:all && cp server/.env.example server/.env"
+  }
+}
