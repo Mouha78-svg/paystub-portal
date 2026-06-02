@@ -8,7 +8,8 @@ import {
 } from '@mui/material';
 import {
   DashboardOutlined, ReceiptLongOutlined, PersonOutlined,
-  MenuOutlined, LogoutOutlined, AccountBalanceOutlined, SyncOutlined, ChevronLeft
+  MenuOutlined, LogoutOutlined, AccountBalanceOutlined, SyncOutlined, ChevronLeft,
+  PeopleOutlined
 } from '@mui/icons-material';
 
 const DRAWER_WIDTH = 250;
@@ -18,6 +19,7 @@ const BASE_NAV_ITEMS = [
   { label: 'Bulletins de salaire', icon: <ReceiptLongOutlined />, path: '/payslips' },
   { label: 'Mon profil', icon: <PersonOutlined />, path: '/profile' },
   { label: 'Synchronisation', icon: <SyncOutlined />, path: '/sync', adminOnly: true },
+  { label: 'Utilisateurs', icon: <PeopleOutlined />, path: '/admin/users', adminOnly: true },
 ];
 
 export default function Layout() {

@@ -27,6 +27,7 @@ app.use('/api/', limiter);
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/payslips', require('./routes/payslips'));
 app.use('/api/sync', require('./routes/sync'));
+app.use('/api/admin', require('./routes/admin'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
