@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import {
@@ -87,7 +87,7 @@ function PayslipRow({ p, onDownload, downloading }) {
 
 export default function Payslips() {
   const { user } = useAuth();
-  const [payslips, setPayslips] = useState([]);
+  const [rawPayslips, setRawPayslips] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
   const [page, setPage] = useState(1);
@@ -104,10 +104,7 @@ export default function Payslips() {
     try {
       const params = { page, limit: 10, ...(filterYear && { annee: filterYear }) };
       const { data } = await api.get('/payslips', { params });
-      let rows = data.data || [];
-      if (filterMois) rows = rows.filter(p => p.mois === filterMois);
-      if (search) rows = rows.filter(p => p.mois.toLowerCase().includes(search.toLowerCase()) || String(p.annee).includes(search));
-      setPayslips(rows);
+      setRawPayslips(data.data || []);
       setTotal(data.total);
       setPages(data.pages);
     } catch (e) {
@@ -116,6 +113,15 @@ export default function Payslips() {
       setLoading(false);
     }
   };
+
+  const payslips = useMemo(() => {
+    let rows = rawPayslips;
+    if (filterMois) rows = rows.filter(p => p.mois === filterMois);
+    if (search) rows = rows.filter(p =>
+      p.mois.toLowerCase().includes(search.toLowerCase()) || String(p.annee).includes(search)
+    );
+    return rows;
+  }, [rawPayslips, filterMois, search]);
 
   useEffect(() => {
     api.get('/payslips/years').then(r => setYears(r.data)).catch(() => {});
