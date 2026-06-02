@@ -41,7 +41,7 @@ export default function Layout() {
   const DrawerContent = () => (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #7D3C00 0%, #5C2D00 100%)' }}>
       <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <Box component="img" src="/favicon.png" alt="CROUS" sx={{ width: 32, height: 32, borderRadius: '50%' }} />
+        <Box component="img" src="/logo.png" alt="CROUS" sx={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
         <Box>
           <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2 }}>Portail RH</Typography>
           <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>CROUS-SL</Typography>
