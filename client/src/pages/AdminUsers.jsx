@@ -10,7 +10,7 @@ import {
 import {
   PersonAddOutlined, EditOutlined, DeleteOutlined, LockResetOutlined,
   AdminPanelSettingsOutlined, PersonOffOutlined, ContentCopyOutlined,
-  CheckCircleOutlined, VisibilityOutlined, VisibilityOffOutlined
+  CheckCircleOutlined, VisibilityOutlined, VisibilityOffOutlined, SearchOutlined
 } from '@mui/icons-material';
 
 const SERVICES = ['Informatique', 'Ressources Humaines', 'Finance', 'Direction', 'Logistique'];
@@ -30,6 +30,7 @@ function StatusChips({ user }) {
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [snack, setSnack] = useState('');
@@ -119,7 +120,7 @@ export default function AdminUsers() {
           pin: form.pin || undefined,
           is_admin: form.is_admin,
         });
-        setSnack(`Employé créé. PIN : ${data.pin}`);
+        setSnack(`Employé créé. Mot de passe 1ère connexion : ${data.pin}`);
       }
       setDialogOpen(false);
       fetchUsers();
@@ -187,9 +188,17 @@ export default function AdminUsers() {
     }
   };
 
+  const q = searchQuery.trim().toLowerCase();
+  const filteredUsers = q
+    ? users.filter(u =>
+        u.matricule.toLowerCase().includes(q) ||
+        `${u.prenom} ${u.nom}`.toLowerCase().includes(q)
+      )
+    : users;
+
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 4, flexWrap: 'wrap', gap: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           <Typography variant="h5">Gestion des utilisateurs</Typography>
           <Typography color="text.secondary">Ajouter, modifier ou supprimer des comptes employés</Typography>
@@ -198,6 +207,21 @@ export default function AdminUsers() {
           Nouvel employé
         </Button>
       </Box>
+
+      <TextField
+        placeholder="Rechercher par matricule ou nom…"
+        value={searchQuery}
+        onChange={e => setSearchQuery(e.target.value)}
+        size="small"
+        sx={{ mb: 3, width: { xs: '100%', sm: 340 } }}
+        InputProps={{
+          startAdornment: (
+            <InputAdornment position="start">
+              <SearchOutlined fontSize="small" sx={{ color: 'text.secondary' }} />
+            </InputAdornment>
+          ),
+        }}
+      />
 
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>{error}</Alert>}
 
@@ -220,7 +244,15 @@ export default function AdminUsers() {
                   {[1, 2, 3, 4, 5, 6].map(j => <TableCell key={j}><Skeleton /></TableCell>)}
                 </TableRow>
               ))
-              : users.map(u => (
+              : filteredUsers.length === 0
+              ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                    <Typography color="text.secondary">Aucun employé trouvé pour « {searchQuery} »</Typography>
+                  </TableCell>
+                </TableRow>
+              )
+              : filteredUsers.map(u => (
                 <TableRow key={u.matricule} hover>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -297,7 +329,7 @@ export default function AdminUsers() {
             />
             {!editTarget && (
               <TextField
-                label="PIN initial (laissez vide pour générer)"
+                label="Mot de passe initial (laissez vide pour utiliser le défaut)"
                 value={form.pin}
                 onChange={e => setForm(f => ({ ...f, pin: e.target.value }))}
                 type={showPin ? 'text' : 'password'}
@@ -369,10 +401,10 @@ export default function AdminUsers() {
                 Le compte repassera en mode « première connexion » et un nouveau PIN sera généré.
               </Typography>
               <TextField
-                label="PIN personnalisé (optionnel)"
+                label="Mot de passe personnalisé (optionnel)"
                 value={resetPin}
                 onChange={e => setResetPin(e.target.value)}
-                helperText="Laissez vide pour générer automatiquement un PIN à 4 chiffres"
+                helperText="Laissez vide pour utiliser le mot de passe par défaut : Crous2025"
                 inputProps={{ maxLength: 10 }}
                 fullWidth
               />

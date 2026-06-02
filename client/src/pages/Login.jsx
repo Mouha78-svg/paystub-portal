@@ -68,8 +68,8 @@ export default function Login() {
       <Box sx={{ width: "100%", maxWidth: 420 }}>
         {/* Logo */}
         <Box sx={{ textAlign: "center", mb: 4 }}>
-          <Box sx={{ width: 120, height: 120, borderRadius: "50%", overflow: "hidden", mx: "auto", mb: 2, bgcolor: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Box component="img" src="/logo.png" alt="CROUS Logo" sx={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          <Box sx={{ width: 120, height: 120, borderRadius: "50%", mx: "auto", mb: 2, bgcolor: "#fff", display: "flex", alignItems: "center", justifyContent: "center", border: "3px solid rgba(255,255,255,0.4)" }}>
+            <Box component="img" src="/logo.png" alt="CROUS Logo" sx={{ width: "86%", height: "86%", objectFit: "contain", borderRadius: "50%", border: "3px solid #A85C26" }} />
           </Box>
           <Typography variant="h5" sx={{ color: "#fff", fontWeight: 700 }}>
             Portail RH
@@ -159,9 +159,13 @@ export default function Login() {
             <Alert severity="info" icon={false} sx={{ fontSize: 12 }}>
               <strong>Démo :</strong>
               <br />
-              Première connexion: EMP001 / PIN: <strong>1234</strong>
+              Première connexion : EMP001 / <strong>Crous2025</strong>
               <br />
-              Compte activé: EMP003 / <strong>Admin123!</strong>
+              Compte activé : EMP003 / <strong>Admin123!</strong>
+              <br />
+              <Typography component="span" sx={{ fontSize: 11, color: 'text.secondary', display: 'block', mt: 0.5 }}>
+                Mot de passe par défaut (1ère connexion) : <strong>Crous2025</strong>
+              </Typography>
             </Alert>
           </CardContent>
         </Card>

@@ -1,5 +1,7 @@
 const { db } = require('../database/db');
 
+const DEFAULT_PIN = 'Crous2025';
+
 exports.getUsers = (req, res) => {
   const users = db.prepare(`
     SELECT matricule, nom, prenom, service, email, is_active, is_admin, first_login, created_at, updated_at
@@ -13,7 +15,7 @@ exports.createUser = (req, res) => {
   if (!matricule || !nom || !prenom || !service)
     return res.status(400).json({ message: 'Matricule, nom, prénom et service requis' });
 
-  const effectivePin = pin?.trim() || Math.floor(1000 + Math.random() * 9000).toString();
+  const effectivePin = pin?.trim() || DEFAULT_PIN;
 
   try {
     db.prepare(`
@@ -68,7 +70,7 @@ exports.resetPassword = (req, res) => {
   const emp = db.prepare('SELECT * FROM employees WHERE matricule=?').get(matricule.toUpperCase());
   if (!emp) return res.status(404).json({ message: 'Employé introuvable' });
 
-  const newPin = pin?.trim() || Math.floor(1000 + Math.random() * 9000).toString();
+  const newPin = pin?.trim() || DEFAULT_PIN;
 
   db.prepare(`
     UPDATE employees SET password_hash=NULL, is_active=0, first_login=1, pin=?, updated_at=datetime('now')

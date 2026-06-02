@@ -60,6 +60,8 @@ function initDB() {
   try { db.exec(`ALTER TABLE employees ADD COLUMN is_admin INTEGER DEFAULT 0`); } catch {}
   db.prepare(`UPDATE employees SET is_admin=1 WHERE matricule='EMP003'`).run();
 
+  const DEFAULT_PIN = 'Crous2025';
+
   // Seed demo employees
   const existing = db.prepare('SELECT COUNT(*) as cnt FROM employees').get();
   if (existing.cnt === 0) {
@@ -70,10 +72,13 @@ function initDB() {
       INSERT INTO employees (matricule, nom, prenom, service, email, password_hash, pin, is_active, is_admin, first_login)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    insertEmp.run('EMP001', 'Seye', 'Mouhamed', 'Informatique', 'mouhamed.seye@acme.sn', null, '1234', 0, 0, 1);
-    insertEmp.run('EMP002', 'Diallo', 'Fatou', 'Ressources Humaines', 'fatou.diallo@acme.sn', null, '5678', 0, 0, 1);
-    insertEmp.run('EMP003', 'Ndiaye', 'Ousmane', 'Finance', 'ousmane.ndiaye@acme.sn', demoHash, '9012', 1, 1, 0);
+    insertEmp.run('EMP001', 'Seye', 'Mouhamed', 'Informatique', 'mouhamed.seye@acme.sn', null, DEFAULT_PIN, 0, 0, 1);
+    insertEmp.run('EMP002', 'Diallo', 'Fatou', 'Ressources Humaines', 'fatou.diallo@acme.sn', null, DEFAULT_PIN, 0, 0, 1);
+    insertEmp.run('EMP003', 'Ndiaye', 'Ousmane', 'Finance', 'ousmane.ndiaye@acme.sn', demoHash, DEFAULT_PIN, 1, 1, 0);
     console.log('✅ Données de démonstration insérées');
+  } else {
+    // Migrate existing demo accounts to use the default PIN
+    db.prepare(`UPDATE employees SET pin=? WHERE matricule IN ('EMP001','EMP002') AND first_login=1`).run(DEFAULT_PIN);
   }
 
   console.log('✅ Base de données initialisée');
