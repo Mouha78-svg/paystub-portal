@@ -111,6 +111,30 @@ exports.changePassword = (req, res) => {
   });
 };
 
+exports.updatePassword = (req, res) => {
+  const { current_password, new_password } = req.body;
+  if (!current_password || !new_password)
+    return res.status(400).json({ message: 'Champs requis manquants' });
+
+  if (new_password.length < 8)
+    return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères' });
+
+  const employee = db.prepare('SELECT * FROM employees WHERE matricule=?').get(req.user.matricule);
+  if (!employee) return res.status(404).json({ message: 'Employé introuvable' });
+
+  if (!employee.password_hash)
+    return res.status(400).json({ message: 'Aucun mot de passe défini. Utilisez la procédure premier accès.' });
+
+  const valid = bcrypt.compareSync(current_password, employee.password_hash);
+  if (!valid) return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
+
+  const hash = bcrypt.hashSync(new_password, 10);
+  db.prepare(`UPDATE employees SET password_hash=?, updated_at=datetime('now') WHERE matricule=?`)
+    .run(hash, employee.matricule);
+
+  res.json({ message: 'Mot de passe mis à jour avec succès' });
+};
+
 exports.logout = (req, res) => {
   res.json({ message: 'Déconnexion réussie' });
 };

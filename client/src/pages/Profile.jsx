@@ -34,9 +34,7 @@ export default function Profile() {
     if (new_password !== confirm_password) { setError('Les mots de passe ne correspondent pas'); return; }
     setLoading(true); setError(''); setSuccess('');
     try {
-      await api.post('/auth/change-password', {
-        matricule: user.matricule, pin: old_password, new_password
-      });
+      await api.post('/auth/update-password', { current_password: old_password, new_password });
       setSuccess('Mot de passe mis à jour avec succès');
       reset();
       setWatchNew('');
@@ -91,7 +89,7 @@ export default function Profile() {
               {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
               <Box component="form" onSubmit={handleSubmit(onSubmit)}>
-                <TextField fullWidth label="Mot de passe actuel / Code PIN" sx={{ mb: 2 }}
+                <TextField fullWidth label="Mot de passe actuel" sx={{ mb: 2 }}
                   type={showOld ? 'text' : 'password'}
                   {...register('old_password', { required: 'Champ requis' })}
                   error={!!errors.old_password} helperText={errors.old_password?.message}
