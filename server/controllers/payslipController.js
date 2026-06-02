@@ -1,6 +1,7 @@
 const { db } = require('../database/db');
 const path = require('path');
 const fs = require('fs');
+const puppeteer = require('puppeteer');
 
 exports.getAll = (req, res) => {
   const { page = 1, limit = 10, annee } = req.query;
@@ -46,25 +47,37 @@ exports.getYears = (req, res) => {
   res.json(years.map(r => r.annee));
 };
 
-exports.download = (req, res) => {
+exports.download = async (req, res) => {
   const payslip = db.prepare('SELECT * FROM payslips WHERE id=? AND matricule=?').get(req.params.id, req.user.matricule);
   if (!payslip) return res.status(404).json({ message: 'Bulletin introuvable ou accès refusé' });
 
   const pdfDir = process.env.PDF_DIR || './pdf';
   const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
 
-  if (!fs.existsSync(filePath)) {
+  if (fs.existsSync(filePath)) {
+    return res.download(filePath, payslip.fichier_pdf);
+  }
+
+  try {
     const employee = db.prepare('SELECT * FROM employees WHERE matricule=?').get(payslip.matricule) || {};
     const ytdRows = db.prepare(
       'SELECT * FROM payslips WHERE matricule=? AND annee=? ORDER BY ROWID'
     ).all(payslip.matricule, payslip.annee);
     const html = generateBulletin(payslip, employee, ytdRows);
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${payslip.fichier_pdf.replace('.pdf', '.html')}"`);
-    return res.send(html);
-  }
 
-  res.download(filePath, payslip.fichier_pdf);
+    const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const pdfBuffer = Buffer.from(await page.pdf({ format: 'A4', printBackground: true }));
+    await browser.close();
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${payslip.fichier_pdf}"`);
+    return res.end(pdfBuffer);
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    return res.status(500).json({ message: 'Erreur lors de la génération du PDF' });
+  }
 };
 
 // ─── Bulletin de Paie — style C.R.O.U.S. ────────────────────────────────────
