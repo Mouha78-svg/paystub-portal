@@ -41,8 +41,8 @@ export default function Layout() {
   const DrawerContent = () => (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #7D3C00 0%, #5C2D00 100%)' }}>
       <Box sx={{ pt: 3, pb: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-        <Box sx={{ width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', flexShrink: 0 }}>
-          <Box component="img" src="/logo.png" alt="CROUS" sx={{ width: '100%', height: '100%', transform: 'scale(1.22)', objectFit: 'cover' }} />
+        <Box sx={{ width: 90, height: 90, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, bgcolor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Box component="img" src="/logo.png" alt="CROUS" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </Box>
         <Box sx={{ textAlign: 'center' }}>
           <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2 }}>Portail RH</Typography>

@@ -68,9 +68,8 @@ export default function Login() {
       <Box sx={{ width: "100%", maxWidth: 420 }}>
         {/* Logo */}
         <Box sx={{ textAlign: "center", mb: 4 }}>
-          <Box sx={{ width: 80, height: 80, borderRadius: "50%", overflow: "hidden", mb: 2, mx: "auto" }}>
-            <Box component="img" src="/logo.png" alt="CROUS Logo"
-              sx={{ width: "100%", height: "100%", transform: "scale(1.22)", objectFit: "cover" }} />
+          <Box sx={{ width: 120, height: 120, borderRadius: "50%", overflow: "hidden", mx: "auto", mb: 2, bgcolor: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Box component="img" src="/logo.png" alt="CROUS Logo" sx={{ width: "100%", height: "100%", objectFit: "contain" }} />
           </Box>
           <Typography variant="h5" sx={{ color: "#fff", fontWeight: 700 }}>
             Portail RH
