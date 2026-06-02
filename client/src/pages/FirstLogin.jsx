@@ -65,7 +65,7 @@ export default function FirstLogin() {
   return (
     <Box sx={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(135deg, #0d1b6e 0%, #1a237e 50%, #1565c0 100%)', p: 2
+      background: 'linear-gradient(135deg, #5C2D00 0%, #7D3C00 50%, #A85C26 100%)', p: 2
     }}>
       <Box sx={{ width: '100%', maxWidth: 460 }}>
         <Box sx={{ textAlign: 'center', mb: 4 }}>

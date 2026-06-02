@@ -3,8 +3,8 @@ import { createTheme } from '@mui/material/styles';
 const theme = createTheme({
   palette: {
     mode: 'light',
-    primary: { main: '#1a237e', light: '#534bae', dark: '#000051', contrastText: '#fff' },
-    secondary: { main: '#00897b', light: '#4ebaaa', dark: '#005b4f', contrastText: '#fff' },
+    primary: { main: '#7D3C00', light: '#A85C26', dark: '#4E2500', contrastText: '#fff' },
+    secondary: { main: '#C68B2E', light: '#E4AA4E', dark: '#8B6200', contrastText: '#fff' },
     background: { default: '#f0f2f8', paper: '#ffffff' },
     success: { main: '#2e7d32' },
     error: { main: '#c62828' },
@@ -22,9 +22,9 @@ const theme = createTheme({
       styleOverrides: {
         root: { borderRadius: 10, padding: '10px 22px' },
         containedPrimary: {
-          background: 'linear-gradient(135deg, #1a237e 0%, #283593 100%)',
-          boxShadow: '0 4px 15px rgba(26,35,126,0.3)',
-          '&:hover': { boxShadow: '0 6px 20px rgba(26,35,126,0.4)' },
+          background: 'linear-gradient(135deg, #7D3C00 0%, #A85C26 100%)',
+          boxShadow: '0 4px 15px rgba(125,60,0,0.3)',
+          '&:hover': { boxShadow: '0 6px 20px rgba(125,60,0,0.4)' },
         },
       },
     },

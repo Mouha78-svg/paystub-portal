@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import {
   DashboardOutlined, ReceiptLongOutlined, PersonOutlined,
-  MenuOutlined, LogoutOutlined, AccountBalanceOutlined, SyncOutlined, ChevronLeft,
+  MenuOutlined, LogoutOutlined, SyncOutlined, ChevronLeft,
   PeopleOutlined
 } from '@mui/icons-material';
 
@@ -39,9 +39,9 @@ export default function Layout() {
   };
 
   const DrawerContent = () => (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #1a237e 0%, #0d1b6e 100%)' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #7D3C00 0%, #5C2D00 100%)' }}>
       <Box sx={{ p: 3, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-        <AccountBalanceOutlined sx={{ color: '#fff', fontSize: 28 }} />
+        <Box component="img" src="/favicon.png" alt="CROUS" sx={{ width: 32, height: 32, borderRadius: '50%' }} />
         <Box>
           <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2 }}>Portail RH</Typography>
           <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>CROUS-SL</Typography>
@@ -50,7 +50,7 @@ export default function Layout() {
 
       <Box sx={{ px: 2, pb: 2 }}>
         <Box sx={{ background: 'rgba(255,255,255,0.1)', borderRadius: 3, p: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Avatar sx={{ bgcolor: '#00897b', width: 36, height: 36, fontSize: 14 }}>{initials}</Avatar>
+          <Avatar sx={{ bgcolor: '#C68B2E', width: 36, height: 36, fontSize: 14 }}>{initials}</Avatar>
           <Box>
             <Typography sx={{ color: '#fff', fontWeight: 600, fontSize: 13 }}>{user?.prenom} {user?.nom}</Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>{user?.matricule}</Typography>
@@ -123,7 +123,7 @@ export default function Layout() {
               </IconButton>
               <Typography variant="h6" sx={{ flex: 1, color: 'text.primary', fontSize: 16 }}>Portail RH</Typography>
               <Tooltip title={`${user?.prenom} ${user?.nom}`}>
-                <Avatar sx={{ bgcolor: '#1a237e', width: 36, height: 36, fontSize: 13, cursor: 'pointer' }}
+                <Avatar sx={{ bgcolor: '#7D3C00', width: 36, height: 36, fontSize: 13, cursor: 'pointer' }}
                   onClick={e => setAnchorEl(e.currentTarget)}>{initials}</Avatar>
               </Tooltip>
               <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>

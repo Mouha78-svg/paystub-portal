@@ -21,7 +21,6 @@ import {
   VisibilityOff,
   BadgeOutlined,
   LockOutlined,
-  AccountBalanceOutlined,
 } from "@mui/icons-material";
 
 export default function Login() {
@@ -62,7 +61,7 @@ export default function Login() {
         alignItems: "center",
         justifyContent: "center",
         background:
-          "linear-gradient(135deg, #0d1b6e 0%, #1a237e 50%, #1565c0 100%)",
+          "linear-gradient(135deg, #5C2D00 0%, #7D3C00 50%, #A85C26 100%)",
         p: 2,
       }}
     >
@@ -70,19 +69,18 @@ export default function Login() {
         {/* Logo */}
         <Box sx={{ textAlign: "center", mb: 4 }}>
           <Box
+            component="img"
+            src="/favicon.png"
+            alt="CROUS Logo"
             sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 64,
-              height: 64,
+              width: 80,
+              height: 80,
               borderRadius: "50%",
-              background: "rgba(255,255,255,0.15)",
               mb: 2,
+              display: "block",
+              mx: "auto",
             }}
-          >
-            <AccountBalanceOutlined sx={{ color: "#fff", fontSize: 32 }} />
-          </Box>
+          />
           <Typography variant="h5" sx={{ color: "#fff", fontWeight: 700 }}>
             Portail RH
           </Typography>

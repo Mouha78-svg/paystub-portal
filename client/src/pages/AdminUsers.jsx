@@ -19,7 +19,7 @@ const EMPTY_FORM = { matricule: '', nom: '', prenom: '', service: '', email: '',
 
 function UserAvatar({ nom, prenom }) {
   const initials = `${prenom?.[0] ?? ''}${nom?.[0] ?? ''}`.toUpperCase();
-  return <Avatar sx={{ bgcolor: '#1a237e', width: 32, height: 32, fontSize: 12 }}>{initials}</Avatar>;
+  return <Avatar sx={{ bgcolor: '#7D3C00', width: 32, height: 32, fontSize: 12 }}>{initials}</Avatar>;
 }
 
 function StatusChips({ user }) {
