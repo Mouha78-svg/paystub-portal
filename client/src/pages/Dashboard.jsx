@@ -32,11 +32,12 @@ export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [payslips, setPayslips] = useState([]);
+  const [total, setTotal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get('/payslips?limit=3').then(r => setPayslips(r.data.data || [])).catch(e => setError(e.response?.data?.message || 'Erreur')).finally(() => setLoading(false));
+    api.get('/payslips?limit=3').then(r => { setPayslips(r.data.data || []); setTotal(r.data.total ?? null); }).catch(e => setError(e.response?.data?.message || 'Erreur')).finally(() => setLoading(false));
   }, []);
 
   const fmt = n => new Intl.NumberFormat('fr-SN', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(n);
@@ -91,7 +92,7 @@ export default function Dashboard() {
         <Grid item xs={12} md={8}>
           <Grid container spacing={2} sx={{ mb: 2 }}>
             <Grid item xs={12} sm={4}>
-              <StatCard icon={<ReceiptLongOutlined />} label="Bulletins" value={loading ? '—' : payslips.length >= 3 ? '3+' : payslips.length} color="primary" loading={loading} />
+              <StatCard icon={<ReceiptLongOutlined />} label="Bulletins" value={loading ? '—' : total !== null ? total : payslips.length} color="primary" loading={loading} />
             </Grid>
             <Grid item xs={12} sm={4}>
               <StatCard icon={<TrendingUpOutlined />} label="Dernier net" value={loading ? '—' : lastPayslip ? fmt(lastPayslip.salaire_net) : '—'} color="success" loading={loading} />
