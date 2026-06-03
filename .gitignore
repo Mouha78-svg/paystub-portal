@@ -23,8 +23,8 @@ build/
 # Accidental directory from brace expansion
 {server/
 
-# Claude Code internals
-.claude/
+# Claude Code — local settings only (agents are project config and should be committed)
+.claude/settings.local.json
 
 # Logs
 *.log

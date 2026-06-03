@@ -32,7 +32,14 @@ app.use('/api/admin', require('./routes/admin'));
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// 404
+// Serve React build in production
+if (process.env.NODE_ENV === 'production') {
+  const clientBuild = path.join(__dirname, '../client/dist');
+  app.use(express.static(clientBuild));
+  app.get('*', (req, res) => res.sendFile(path.join(clientBuild, 'index.html')));
+}
+
+// 404 (dev only — production falls through to React above)
 app.use((req, res) => res.status(404).json({ message: 'Endpoint introuvable' }));
 
 // Error handler

@@ -1,0 +1,135 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+
+jobs:
+  # ── 1. Build ──────────────────────────────────────────────────────────────
+  build:
+    name: Build frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install client dependencies
+        run: cd client && npm ci
+
+      - name: Build React app
+        run: cd client && npm run build
+        # Output: client/dist/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-dist
+          path: client/dist/
+          retention-days: 7
+
+  # ── 2. Deploy ─────────────────────────────────────────────────────────────
+  # This job deploys to a Linux server over SSH.
+  # Required GitHub Secrets (Settings → Secrets → Actions):
+  #   SERVER_HOST       — IP address or hostname of your server
+  #   SERVER_USER       — SSH username (e.g. ubuntu, deploy)
+  #   SSH_PRIVATE_KEY   — Private key whose public key is in ~/.ssh/authorized_keys on the server
+  #   DEPLOY_PATH       — Absolute path on the server, e.g. /var/www/paystub-portal
+  #   JWT_SECRET        — Strong random string for production JWT signing
+  #
+  # One-time server setup (run manually on the server):
+  #   sudo apt install -y nodejs npm
+  #   mkdir -p $DEPLOY_PATH/server/pdf $DEPLOY_PATH/server/uploads $DEPLOY_PATH/server/csv
+  #   # Place your .env in $DEPLOY_PATH/server/.env with NODE_ENV=production
+  #   npm install -g pm2
+  deploy:
+    name: Deploy to server
+    runs-on: ubuntu-latest
+    needs: build
+    # Remove the condition below once your secrets are configured
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: client-dist
+          path: client/dist/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies (prod only)
+        run: cd server && npm ci --omit=dev
+
+      - name: Create deployment archive
+        run: |
+          tar -czf deploy.tar.gz \
+            server/ \
+            client/dist/ \
+            package.json \
+            --exclude='server/node_modules/.cache' \
+            --exclude='server/database/*.db' \
+            --exclude='server/database/*.db-wal' \
+            --exclude='server/database/*.db-shm' \
+            --exclude='server/.env'
+
+      - name: Upload archive to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: deploy.tar.gz
+          target: /tmp/
+
+      - name: Extract and restart
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            DEPLOY=${{ secrets.DEPLOY_PATH }}
+
+            # Extract new code (preserves .env, database, pdf, uploads, csv)
+            tar -xzf /tmp/deploy.tar.gz -C $DEPLOY --overwrite
+            rm /tmp/deploy.tar.gz
+
+            # Ensure runtime directories exist
+            mkdir -p $DEPLOY/server/pdf $DEPLOY/server/uploads $DEPLOY/server/csv
+
+            # Write .env with production values (secrets override file on disk)
+            # If you manage .env manually on the server, remove this block.
+            cat > $DEPLOY/server/.env << 'ENVEOF'
+            PORT=5000
+            NODE_ENV=production
+            JWT_EXPIRES_IN=8h
+            DB_PATH=./database/paystub.db
+            PDF_DIR=./pdf
+            CSV_PATH=./csv/payslips.csv
+            CLIENT_URL=https://${{ secrets.SERVER_HOST }}
+            ENVEOF
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> $DEPLOY/server/.env
+
+            # Restart the app with PM2 (starts it if not running)
+            cd $DEPLOY/server
+            pm2 restart paystub-portal --update-env 2>/dev/null || \
+              pm2 start index.js --name paystub-portal --update-env
+            pm2 save
