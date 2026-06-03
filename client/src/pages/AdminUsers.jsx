@@ -10,7 +10,8 @@ import {
 import {
   PersonAddOutlined, EditOutlined, DeleteOutlined, LockResetOutlined,
   AdminPanelSettingsOutlined, PersonOffOutlined, ContentCopyOutlined,
-  CheckCircleOutlined, VisibilityOutlined, VisibilityOffOutlined, SearchOutlined
+  CheckCircleOutlined, VisibilityOutlined, VisibilityOffOutlined, SearchOutlined,
+  RestartAltOutlined
 } from '@mui/icons-material';
 
 const SERVICES = ['Informatique', 'Ressources Humaines', 'Finance', 'Direction', 'Logistique'];
@@ -46,6 +47,10 @@ export default function AdminUsers() {
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Quick reset to default dialog
+  const [quickResetTarget, setQuickResetTarget] = useState(null);
+  const [quickResetting, setQuickResetting] = useState(false);
 
   // Reset password dialog
   const [resetTarget, setResetTarget] = useState(null);
@@ -172,6 +177,21 @@ export default function AdminUsers() {
     }
   };
 
+  const handleQuickReset = async () => {
+    setQuickResetting(true);
+    try {
+      await api.post(`/admin/users/${quickResetTarget.matricule}/reset-password`, {});
+      setSnack(`Mot de passe de ${quickResetTarget.prenom} ${quickResetTarget.nom} réinitialisé au défaut (Crous2025).`);
+      setQuickResetTarget(null);
+      fetchUsers();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Erreur lors de la réinitialisation');
+      setQuickResetTarget(null);
+    } finally {
+      setQuickResetting(false);
+    }
+  };
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     setSnack('PIN copié dans le presse-papiers.');
@@ -285,7 +305,10 @@ export default function AdminUsers() {
                     <Tooltip title="Modifier">
                       <IconButton size="small" onClick={() => openEdit(u)}><EditOutlined fontSize="small" /></IconButton>
                     </Tooltip>
-                    <Tooltip title="Réinitialiser le mot de passe">
+                    <Tooltip title="Réinitialiser au mot de passe par défaut (Crous2025)">
+                      <IconButton size="small" color="info" onClick={() => setQuickResetTarget(u)}><RestartAltOutlined fontSize="small" /></IconButton>
+                    </Tooltip>
+                    <Tooltip title="Réinitialiser le mot de passe (personnalisé)">
                       <IconButton size="small" color="warning" onClick={() => openReset(u)}><LockResetOutlined fontSize="small" /></IconButton>
                     </Tooltip>
                     <Tooltip title="Supprimer">
@@ -421,6 +444,23 @@ export default function AdminUsers() {
               </Button>
             </>
           }
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Quick Reset to Default Dialog ── */}
+      <Dialog open={Boolean(quickResetTarget)} onClose={() => setQuickResetTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Réinitialiser au mot de passe par défaut</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Réinitialiser le mot de passe de <strong>{quickResetTarget?.prenom} {quickResetTarget?.nom}</strong> au mot de passe par défaut{' '}
+            <strong>Crous2025</strong> ? Le compte repassera en mode « première connexion ».
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setQuickResetTarget(null)}>Annuler</Button>
+          <Button variant="contained" color="info" onClick={handleQuickReset} disabled={quickResetting}>
+            {quickResetting ? <CircularProgress size={20} /> : 'Réinitialiser'}
+          </Button>
         </DialogActions>
       </Dialog>
 
