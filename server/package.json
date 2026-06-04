@@ -4,6 +4,7 @@
   "description": "Serveur API pour la gestion des bulletins de salaire",
   "main": "index.js",
   "scripts": {
+    "build": "echo 'Server: no build step'",
     "start": "node index.js",
     "dev": "nodemon index.js"
   },

@@ -68,8 +68,29 @@ export default function Login() {
       <Box sx={{ width: "100%", maxWidth: 420 }}>
         {/* Logo */}
         <Box sx={{ textAlign: "center", mb: 4 }}>
-          <Box sx={{ width: 120, height: 120, borderRadius: "50%", mx: "auto", mb: 2, bgcolor: "#fff", border: "3px solid #A85C26", overflow: "hidden" }}>
-            <Box component="img" src="/logo.png" alt="CROUS Logo" sx={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+          <Box
+            sx={{
+              width: 120,
+              height: 120,
+              borderRadius: "50%",
+              mx: "auto",
+              mb: 2,
+              bgcolor: "#fff",
+              border: "3px solid #A85C26",
+              overflow: "hidden",
+            }}
+          >
+            <Box
+              component="img"
+              src="/logo.png"
+              alt="CROUS Logo"
+              sx={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
           </Box>
           <Typography variant="h5" sx={{ color: "#fff", fontWeight: 700 }}>
             Portail RH
@@ -78,7 +99,7 @@ export default function Login() {
             variant="body2"
             sx={{ color: "rgba(255,255,255,0.65)", mt: 0.5 }}
           >
-            UGB-CROUS Sénégal
+            UGB-CROUS-SL
           </Typography>
         </Box>
 
@@ -163,8 +184,17 @@ export default function Login() {
               <br />
               Compte activé : EMP003 / <strong>Admin123!</strong>
               <br />
-              <Typography component="span" sx={{ fontSize: 11, color: 'text.secondary', display: 'block', mt: 0.5 }}>
-                Mot de passe par défaut (1ère connexion) : <strong>Crous2025</strong>
+              <Typography
+                component="span"
+                sx={{
+                  fontSize: 11,
+                  color: "text.secondary",
+                  display: "block",
+                  mt: 0.5,
+                }}
+              >
+                Mot de passe par défaut (1ère connexion) :{" "}
+                <strong>Crous2025</strong>
               </Typography>
             </Alert>
           </CardContent>
