@@ -145,6 +145,12 @@ function fmt(n) {
   return Number(n).toLocaleString('fr-FR');
 }
 
+const INDICES = { A: '320', B: '380' };
+
+function fmtTaux(n) {
+  return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function generateBulletin(p, emp, ytdRows) {
   const brut        = p.salaire_brut;
   const net         = p.salaire_net;
@@ -158,9 +164,15 @@ function generateBulletin(p, emp, ytdRows) {
     (s, r) => s + Math.round(r.salaire_brut + TRANSPORT - r.salaire_net), 0
   ));
 
-  const service = emp.service || '';
-  const job     = JOB_MAP[service] || { emploi: 'AGENT', qualif: 'AGENT', coeff: '1', cat: 'A' };
+  const service     = emp.service || '';
+  const job         = JOB_MAP[service] || { emploi: 'AGENT', qualif: 'AGENT', coeff: '1', cat: 'A' };
   const [anc_ans, anc_mois] = SENIORITY[p.matricule] || [0, 1];
+
+  const HEURES      = 173.33;
+  const taux_horaire = Math.round(brut / HEURES);
+  const taux_irpp    = irpp / brut * 100;
+  const taux_trimf   = trimf / brut * 100;
+  const indice       = INDICES[job.cat] || '300';
 
   const moisNum = MOIS_NUM[p.mois] || '01';
   const days    = MOIS_DAYS[p.mois] || 30;
@@ -251,7 +263,7 @@ table.sum th{background:#e0e0e0;text-align:center}
 <div class="emp-row">
   <div class="emp-left">
     <div class="fr"><span class="fk">Conv. coll.</span><span>CONVENTION ETS PUBLICS</span></div>
-    <div class="fr"><span class="fk">Indice</span><span>Niveau</span></div>
+    <div class="fr"><span class="fk">Indice</span><span>${indice}</span></div>
     <div class="fr"><span class="fk">Coefficient</span><span>${job.coeff} &nbsp;&nbsp;&nbsp; Horaire &nbsp; 173,330</span></div>
     <div class="fr"><span class="fk">Emploi</span><span>${job.emploi}</span></div>
     <div class="fr"><span class="fk">Qualification</span><span>${job.qualif}</span></div>
@@ -261,6 +273,7 @@ table.sum th{background:#e0e0e0;text-align:center}
   <div class="emp-right">
     <div class="emp-name">M &nbsp; ${p.nom.toUpperCase()} &nbsp; ${p.prenom}</div>
     <div class="emp-city">SAINT-LOUIS</div>
+    ${emp.email ? `<div class="emp-city" style="margin-top:3px">${emp.email}</div>` : ''}
   </div>
 </div>
 
@@ -299,12 +312,12 @@ table.sum th{background:#e0e0e0;text-align:center}
   <tbody>
     <tr>
       <td>10</td><td>Salaire de base mensuel</td>
-      <td></td><td></td><td></td>
+      <td class="rr">173,330</td><td class="rr">${fmt(taux_horaire)}</td><td class="rr">1,000</td>
       <td class="rr">${fmt(brut)}</td><td></td><td></td><td></td><td></td>
     </tr>
     <tr>
       <td>230</td><td>*** Salaire Brut Imposable</td>
-      <td></td><td></td><td></td>
+      <td class="rr">173,330</td><td class="rr">${fmt(taux_horaire)}</td><td class="rr">1,000</td>
       <td class="rr">${fmt(brut)}</td><td></td><td></td><td></td><td></td>
     </tr>
     <tr class="tr">
@@ -314,13 +327,13 @@ table.sum th{background:#e0e0e0;text-align:center}
     </tr>
     <tr>
       <td>1080</td><td>Retenue Impôt sur le Revenu</td>
-      <td></td><td></td><td></td>
+      <td></td><td class="rr">${fmt(brut)}</td><td class="rr">${fmtTaux(taux_irpp)}</td>
       <td></td><td class="rr">${fmt(irpp)}</td>
       <td></td><td class="rr">0</td><td></td>
     </tr>
     <tr>
       <td>1090</td><td>Retenue TRIMF</td>
-      <td></td><td></td><td></td>
+      <td></td><td class="rr">${fmt(brut)}</td><td class="rr">${fmtTaux(taux_trimf)}</td>
       <td></td><td class="rr">${fmt(trimf)}</td>
       <td></td><td class="rr">0</td><td></td>
     </tr>
@@ -332,7 +345,7 @@ table.sum th{background:#e0e0e0;text-align:center}
     </tr>
     <tr>
       <td>1510</td><td>Prime de transport</td>
-      <td></td><td></td><td></td>
+      <td class="rr">1</td><td class="rr">${fmt(TRANSPORT)}</td><td class="rr">1,000</td>
       <td class="rr">${fmt(TRANSPORT)}</td>
       <td></td><td></td><td></td><td></td>
     </tr>
