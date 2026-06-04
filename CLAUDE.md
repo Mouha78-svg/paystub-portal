@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Full-stack HR portal (French-language) for employees to consult and download payslips. Two separate Node.js apps: `server/` (Express + SQLite) and `client/` (React + Vite + MUI).
+Full-stack HR portal (French-language) for employees to consult and download payslips. Two separate Node.js apps: `server/` (Express + PostgreSQL via Supabase) and `client/` (React + Vite + MUI).
 
 ## Commands
 
@@ -35,17 +35,19 @@ There is no test suite in this project.
 ## Architecture
 
 ### Backend (`server/`)
-- **Entry**: `index.js` — Express app, CORS (origin: `CLIENT_URL` env var or `localhost:5173`), global rate limiter (100 req/15 min), then mounts routes under `/api/`.
-- **Database**: `database/db.js` — `better-sqlite3` (synchronous), WAL mode. `initDB()` auto-creates tables, runs schema migrations (e.g. `ALTER TABLE … ADD COLUMN`), and seeds 3 demo employees on first run. Exported as a singleton `db`. The migration block also resets first-login demo accounts to `DEFAULT_PIN` on every startup.
+- **Entry**: `index.js` — Express app, CORS (origin: `CLIENT_URL` env var or `localhost:5173`), global rate limiter (100 req/15 min), mounts routes under `/api/`. `initDB()` is async; the server only starts listening after the DB is ready.
+- **Database**: `database/db.js` — `pg` Pool connected to Supabase via `DATABASE_URL`. `initDB()` runs `CREATE TABLE IF NOT EXISTS` for all three tables, ensures EMP003 is admin, and seeds 3 demo employees on first run. Exports `pool` (not a singleton `db`). Schema DDL is also in `database/schema.sql` for manual Supabase dashboard setup.
+- **Query conventions**: All controllers are `async/await`. Positional parameters use `$1, $2, …` (not `?`). `COUNT(*)` queries return a BigInt string from pg — always wrap in `parseInt()`. `DOUBLE PRECISION` is used for salary columns (maps to JS `number` directly; `NUMERIC` would return strings).
 - **Auth flow** (two-phase):
   1. First-time users authenticate with matricule + PIN → short-lived 30 min JWT with `first_login: true`.
   2. `POST /api/auth/change-password` verifies PIN again, sets `password_hash`, flips `is_active=1` and `first_login=0`, issues full 8 h JWT.
   3. Subsequent logins use matricule + bcrypt password. Per-matricule rate limit: 5 failed attempts / 15 min tracked in `login_attempts` table.
 - **JWT payload**: `{ matricule, nom, prenom, service, is_admin }` (full token) or `{ matricule, first_login: true }` (temp token).
-- **Default first-login password**: `DEFAULT_PIN = 'Crous2025'` defined in `controllers/adminController.js`. Used when admin creates or resets a user without specifying a custom password. The login page displays this value in its demo section.
+- **Default first-login PIN**: `DEFAULT_PIN = 'Crous2025'` defined in `controllers/adminController.js`. Used when admin creates or resets a user without specifying a custom PIN. The login page displays this value in its demo section.
 - **PDF serving**: `GET /api/payslips/download/:id` — serves the file at `PDF_DIR/<fichier_pdf>` if it exists; otherwise generates a PDF on-the-fly via Puppeteer.
-- **CSV sync**: `POST /api/sync/csv` — accepts multipart upload (multer) or reads `CSV_PATH`. Upserts rows into `payslips` table (unique on `matricule+mois+annee`).
+- **CSV sync**: `POST /api/sync/csv` — accepts multipart upload (multer) or reads `CSV_PATH`. Collects all rows from the stream, then runs a single `BEGIN/COMMIT` pg transaction that upserts both `employees` and `payslips` (unique on `matricule+mois+annee`).
 - **Middleware**: `middleware/auth.js` verifies JWT and attaches `req.user`. `middleware/admin.js` checks `req.user.is_admin`; applied at the router level for all `/api/admin/*` routes.
+- **Async error propagation**: All async controller functions accept `(req, res, next)` and call `next(err)` for unhandled errors, which are caught by the global error handler in `index.js`.
 
 ### API Routes
 
@@ -65,6 +67,10 @@ There is no test suite in this project.
 | PUT | `/api/admin/users/:matricule` | admin | Update employee |
 | DELETE | `/api/admin/users/:matricule` | admin | Delete employee |
 | POST | `/api/admin/users/:matricule/reset-password` | admin | Reset to first-login + new PIN |
+| GET | `/api/admin/users/:matricule/payslips` | admin | List payslips for a user |
+| POST | `/api/admin/users/:matricule/payslips` | admin | Add payslip (with optional PDF upload) |
+| PUT | `/api/admin/payslips/:id` | admin | Update payslip |
+| DELETE | `/api/admin/payslips/:id` | admin | Delete payslip |
 
 ### Frontend (`client/`)
 - **Auth context**: `src/contexts/AuthContext.jsx` — stores JWT + user object in `localStorage`, provides `login`, `logout`, and `user` to the whole app. The `user` object includes `is_admin`.
@@ -74,7 +80,7 @@ There is no test suite in this project.
   - Protected routes (inside `<Layout>`): `/dashboard`, `/payslips`, `/profile`
   - Admin-only routes (inside `<AdminRoute>`): `/sync`, `/admin/users`
   - `<PrivateRoute>` redirects unauthenticated users to `/login`; `<AdminRoute>` redirects non-admins to `/dashboard`
-- **Pages**: Dashboard, Payslips (list + download), Profile (change password), Sync (CSV upload), AdminUsers (CRUD + search + reset password).
+- **Pages**: Dashboard, Payslips (list + download), Profile (change password), Sync (CSV upload), AdminUsers (CRUD + search + reset password + payslip management).
 - **Theme**: `src/theme.js` — MUI theme with marron/ocre CROUS color scheme (`#7D3C00` primary, `#C68B2E` secondary). Applied at app root via `<ThemeProvider>`.
 - **Logo**: `client/public/logo.png` — displayed in sidebar and login page inside a circular white container with `borderRadius: '50%'` and image inset to 86% to prevent corner clipping.
 
@@ -92,12 +98,14 @@ There is no test suite in this project.
 PORT=5000
 JWT_SECRET=<change this>
 JWT_EXPIRES_IN=8h
-DB_PATH=./database/paystub.db
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT_REF].supabase.co:5432/postgres
 PDF_DIR=./pdf
 CSV_PATH=./csv/payslips.csv
 NODE_ENV=development
 CLIENT_URL=http://localhost:5173   # optional, defaults to localhost:5173
 ```
+
+`DATABASE_URL` is the Supabase connection string found under **Settings → Database → Connection string → URI**.
 
 ## CSV Format
 

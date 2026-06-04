@@ -1,20 +1,14 @@
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
 
-const DB_PATH = process.env.DB_PATH || './database/paystub.db';
-const dbDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-const db = new Database(DB_PATH);
-
-function initDB() {
-  db.exec(`
-    PRAGMA journal_mode=WAL;
-    PRAGMA foreign_keys=ON;
-
+async function initDB() {
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS employees (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       matricule TEXT UNIQUE NOT NULL,
       nom TEXT NOT NULL,
       prenom TEXT NOT NULL,
@@ -25,63 +19,65 @@ function initDB() {
       is_active INTEGER DEFAULT 0,
       is_admin INTEGER DEFAULT 0,
       first_login INTEGER DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    );
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
 
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS payslips (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       matricule TEXT NOT NULL,
       nom TEXT NOT NULL,
       prenom TEXT NOT NULL,
       mois TEXT NOT NULL,
       annee INTEGER NOT NULL,
-      salaire_brut REAL NOT NULL,
-      salaire_net REAL NOT NULL,
+      salaire_brut DOUBLE PRECISION NOT NULL,
+      salaire_net DOUBLE PRECISION NOT NULL,
       fichier_pdf TEXT,
-      synced_at TEXT DEFAULT (datetime('now')),
+      synced_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(matricule, mois, annee),
       FOREIGN KEY (matricule) REFERENCES employees(matricule)
-    );
+    )
+  `);
 
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS login_attempts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       matricule TEXT NOT NULL,
       ip TEXT,
       success INTEGER DEFAULT 0,
-      attempted_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_payslips_matricule ON payslips(matricule);
-    CREATE INDEX IF NOT EXISTS idx_payslips_annee ON payslips(annee);
+      attempted_at TIMESTAMPTZ DEFAULT NOW()
+    )
   `);
 
-  // Migration: add is_admin column if it doesn't exist yet
-  try { db.exec(`ALTER TABLE employees ADD COLUMN is_admin INTEGER DEFAULT 0`); } catch {}
-  db.prepare(`UPDATE employees SET is_admin=1 WHERE matricule='EMP003'`).run();
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_payslips_matricule ON payslips(matricule)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_payslips_annee ON payslips(annee)`);
 
-  const DEFAULT_PIN = 'Crous2025';
+  await pool.query(`UPDATE employees SET is_admin=1 WHERE matricule='EMP003'`);
 
-  // Seed demo employees
-  const existing = db.prepare('SELECT COUNT(*) as cnt FROM employees').get();
-  if (existing.cnt === 0) {
+  const { rows } = await pool.query('SELECT COUNT(*) as cnt FROM employees');
+  if (parseInt(rows[0].cnt) === 0) {
     const bcrypt = require('bcryptjs');
-    const salt = bcrypt.genSaltSync(10);
-    const demoHash = bcrypt.hashSync('Admin123!', salt);
-    const insertEmp = db.prepare(`
-      INSERT INTO employees (matricule, nom, prenom, service, email, password_hash, pin, is_active, is_admin, first_login)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    insertEmp.run('EMP001', 'Seye', 'Mouhamed', 'Informatique', 'mouhamed.seye@acme.sn', null, DEFAULT_PIN, 0, 0, 1);
-    insertEmp.run('EMP002', 'Diallo', 'Fatou', 'Ressources Humaines', 'fatou.diallo@acme.sn', null, DEFAULT_PIN, 0, 0, 1);
-    insertEmp.run('EMP003', 'Ndiaye', 'Ousmane', 'Finance', 'ousmane.ndiaye@acme.sn', demoHash, DEFAULT_PIN, 1, 1, 0);
+    const demoHash = bcrypt.hashSync('Admin123!', 10);
+    const DEFAULT_PIN = 'Crous2025';
+    await pool.query(
+      `INSERT INTO employees (matricule, nom, prenom, service, email, password_hash, pin, is_active, is_admin, first_login)
+       VALUES
+         ('EMP001','Seye','Mouhamed','Informatique','mouhamed.seye@acme.sn',NULL,$1,0,0,1),
+         ('EMP002','Diallo','Fatou','Ressources Humaines','fatou.diallo@acme.sn',NULL,$1,0,0,1),
+         ('EMP003','Ndiaye','Ousmane','Finance','ousmane.ndiaye@acme.sn',$2,$1,1,1,0)`,
+      [DEFAULT_PIN, demoHash]
+    );
     console.log('✅ Données de démonstration insérées');
   } else {
-    // Migrate existing demo accounts to use the default PIN
-    db.prepare(`UPDATE employees SET pin=? WHERE matricule IN ('EMP001','EMP002') AND first_login=1`).run(DEFAULT_PIN);
+    await pool.query(
+      `UPDATE employees SET pin=$1 WHERE matricule IN ('EMP001','EMP002') AND first_login=1`,
+      ['Crous2025']
+    );
   }
 
   console.log('✅ Base de données initialisée');
 }
 
-module.exports = { db, initDB };
+module.exports = { pool, initDB };

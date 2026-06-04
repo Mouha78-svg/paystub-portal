@@ -8,9 +8,6 @@ const { initDB } = require('./database/db');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Init DB
-initDB();
-
 // Rate limiter
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: { message: 'Trop de requêtes' } });
 
@@ -48,6 +45,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Erreur serveur', error: process.env.NODE_ENV === 'development' ? err.message : undefined });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
-});
+initDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('❌ Erreur initialisation base de données:', err);
+    process.exit(1);
+  });

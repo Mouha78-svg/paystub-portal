@@ -1,68 +1,109 @@
-const { db } = require('../database/db');
+const { pool } = require('../database/db');
 const path = require('path');
 const fs = require('fs');
 const puppeteer = require('puppeteer');
 
-exports.getAll = (req, res) => {
-  const { page = 1, limit = 10, annee } = req.query;
-  const offset = (page - 1) * limit;
-  const matricule = req.user.matricule;
-
-  let query = 'SELECT * FROM payslips WHERE matricule=?';
-  let countQuery = 'SELECT COUNT(*) as total FROM payslips WHERE matricule=?';
-  const params = [matricule];
-
-  if (annee) {
-    query += ' AND annee=?';
-    countQuery += ' AND annee=?';
-    params.push(annee);
-  }
-
-  query += ' ORDER BY annee DESC, mois DESC LIMIT ? OFFSET ?';
-  const rows = db.prepare(query).all(...params, parseInt(limit), parseInt(offset));
-  const { total } = db.prepare(countQuery).get(...params);
-
-  res.json({ data: rows, total, page: parseInt(page), pages: Math.ceil(total / limit) });
-};
-
-exports.getByMatricule = (req, res) => {
-  const matricule = req.params.matricule.toUpperCase();
-  if (req.user.matricule !== matricule) return res.status(403).json({ message: 'Accès refusé' });
-
-  const rows = db.prepare('SELECT * FROM payslips WHERE matricule=? ORDER BY annee DESC, mois DESC').all(matricule);
-  res.json(rows);
-};
-
-exports.getOne = (req, res) => {
-  const { matricule, annee, mois } = req.params;
-  if (req.user.matricule !== matricule.toUpperCase()) return res.status(403).json({ message: 'Accès refusé' });
-
-  const row = db.prepare('SELECT * FROM payslips WHERE matricule=? AND annee=? AND mois=?').get(matricule.toUpperCase(), annee, mois);
-  if (!row) return res.status(404).json({ message: 'Bulletin introuvable' });
-  res.json(row);
-};
-
-exports.getYears = (req, res) => {
-  const years = db.prepare('SELECT DISTINCT annee FROM payslips WHERE matricule=? ORDER BY annee DESC').all(req.user.matricule);
-  res.json(years.map(r => r.annee));
-};
-
-exports.download = async (req, res) => {
-  const payslip = db.prepare('SELECT * FROM payslips WHERE id=? AND matricule=?').get(req.params.id, req.user.matricule);
-  if (!payslip) return res.status(404).json({ message: 'Bulletin introuvable ou accès refusé' });
-
-  const pdfDir = process.env.PDF_DIR || './pdf';
-  const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
-
-  if (fs.existsSync(filePath)) {
-    return res.download(filePath, payslip.fichier_pdf);
-  }
-
+exports.getAll = async (req, res, next) => {
   try {
-    const employee = db.prepare('SELECT * FROM employees WHERE matricule=?').get(payslip.matricule) || {};
-    const ytdRows = db.prepare(
-      'SELECT * FROM payslips WHERE matricule=? AND annee=? ORDER BY ROWID'
-    ).all(payslip.matricule, payslip.annee);
+    const { page = 1, limit = 10, annee } = req.query;
+    const offset = (page - 1) * limit;
+    const matricule = req.user.matricule;
+
+    const params = [matricule];
+    const countParams = [matricule];
+
+    let query = 'SELECT * FROM payslips WHERE matricule=$1';
+    let countQuery = 'SELECT COUNT(*) as total FROM payslips WHERE matricule=$1';
+
+    if (annee) {
+      params.push(annee);
+      countParams.push(annee);
+      query += ` AND annee=$2`;
+      countQuery += ` AND annee=$2`;
+    }
+
+    query += ` ORDER BY annee DESC, mois DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const [{ rows }, { rows: countRows }] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams),
+    ]);
+
+    const total = parseInt(countRows[0].total);
+    res.json({ data: rows, total, page: parseInt(page), pages: Math.ceil(total / limit) });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getByMatricule = async (req, res, next) => {
+  try {
+    const matricule = req.params.matricule.toUpperCase();
+    if (req.user.matricule !== matricule) return res.status(403).json({ message: 'Accès refusé' });
+
+    const { rows } = await pool.query(
+      'SELECT * FROM payslips WHERE matricule=$1 ORDER BY annee DESC, mois DESC',
+      [matricule]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getOne = async (req, res, next) => {
+  try {
+    const { matricule, annee, mois } = req.params;
+    if (req.user.matricule !== matricule.toUpperCase()) return res.status(403).json({ message: 'Accès refusé' });
+
+    const { rows } = await pool.query(
+      'SELECT * FROM payslips WHERE matricule=$1 AND annee=$2 AND mois=$3',
+      [matricule.toUpperCase(), annee, mois]
+    );
+    if (!rows[0]) return res.status(404).json({ message: 'Bulletin introuvable' });
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getYears = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT DISTINCT annee FROM payslips WHERE matricule=$1 ORDER BY annee DESC',
+      [req.user.matricule]
+    );
+    res.json(rows.map(r => r.annee));
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.download = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM payslips WHERE id=$1 AND matricule=$2',
+      [req.params.id, req.user.matricule]
+    );
+    const payslip = rows[0];
+    if (!payslip) return res.status(404).json({ message: 'Bulletin introuvable ou accès refusé' });
+
+    const pdfDir = process.env.PDF_DIR || './pdf';
+    const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
+
+    if (fs.existsSync(filePath)) {
+      return res.download(filePath, payslip.fichier_pdf);
+    }
+
+    const { rows: empRows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [payslip.matricule]);
+    const employee = empRows[0] || {};
+
+    const { rows: ytdRows } = await pool.query(
+      'SELECT * FROM payslips WHERE matricule=$1 AND annee=$2 ORDER BY id',
+      [payslip.matricule, payslip.annee]
+    );
+
     const html = generateBulletin(payslip, employee, ytdRows);
 
     const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
@@ -76,7 +117,7 @@ exports.download = async (req, res) => {
     return res.end(pdfBuffer);
   } catch (err) {
     console.error('PDF generation error:', err);
-    return res.status(500).json({ message: 'Erreur lors de la génération du PDF' });
+    next(err);
   }
 };
 

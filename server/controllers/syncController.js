@@ -1,11 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const csv = require('csv-parser');
-const { db } = require('../database/db');
+const { pool } = require('../database/db');
 
 const DEFAULT_PIN = 'Crous2025';
 
-exports.syncCSV = (req, res) => {
+exports.syncCSV = (req, res, next) => {
   const csvPath = req.file ? req.file.path : path.resolve(process.env.CSV_PATH || './csv/payslips.csv');
 
   if (!fs.existsSync(csvPath)) {
@@ -42,60 +42,52 @@ exports.syncCSV = (req, res) => {
         fichier_pdf: fichier_pdf?.trim() || `${matricule}_${annee}_${mois}.pdf`,
       });
     })
-    .on('end', () => {
+    .on('end', async () => {
       if (results.length === 0) {
         return res.status(400).json({ message: 'Aucune donnée valide dans le CSV', errors });
       }
 
-      const upsertPayslip = db.prepare(`
-        INSERT INTO payslips (matricule, nom, prenom, mois, annee, salaire_brut, salaire_net, fichier_pdf, synced_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        ON CONFLICT(matricule, mois, annee) DO UPDATE SET
-          nom=excluded.nom, prenom=excluded.prenom,
-          salaire_brut=excluded.salaire_brut, salaire_net=excluded.salaire_net,
-          fichier_pdf=excluded.fichier_pdf, synced_at=excluded.synced_at
-      `);
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
 
-      // Upsert employee: create with all fields; for existing employees update
-      // nom/prenom/service/email/is_admin but never touch password_hash or reset first_login.
-      const upsertEmployee = db.prepare(`
-        INSERT INTO employees (matricule, nom, prenom, service, email, pin, is_admin, is_active, first_login)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1)
-        ON CONFLICT(matricule) DO UPDATE SET
-          nom = excluded.nom,
-          prenom = excluded.prenom,
-          service = CASE WHEN excluded.service != '' THEN excluded.service ELSE employees.service END,
-          email = CASE WHEN excluded.email IS NOT NULL THEN excluded.email ELSE employees.email END,
-          is_admin = excluded.is_admin,
-          updated_at = datetime('now')
-      `);
-
-      const sync = db.transaction((rows) => {
         let count = 0;
-        for (const r of rows) {
+        for (const r of results) {
           if (r.nom && r.prenom) {
-            upsertEmployee.run(
-              r.matricule, r.nom, r.prenom,
-              r.service || 'Non défini', r.email, r.pin, r.is_admin,
+            await client.query(
+              `INSERT INTO employees (matricule, nom, prenom, service, email, pin, is_admin, is_active, first_login)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 1)
+               ON CONFLICT(matricule) DO UPDATE SET
+                 nom = EXCLUDED.nom,
+                 prenom = EXCLUDED.prenom,
+                 service = CASE WHEN EXCLUDED.service != '' THEN EXCLUDED.service ELSE employees.service END,
+                 email = CASE WHEN EXCLUDED.email IS NOT NULL THEN EXCLUDED.email ELSE employees.email END,
+                 is_admin = EXCLUDED.is_admin,
+                 updated_at = NOW()`,
+              [r.matricule, r.nom, r.prenom, r.service || 'Non défini', r.email, r.pin, r.is_admin]
             );
           }
-          upsertPayslip.run(
-            r.matricule, r.nom, r.prenom, r.mois, r.annee,
-            r.salaire_brut, r.salaire_net, r.fichier_pdf,
+          await client.query(
+            `INSERT INTO payslips (matricule, nom, prenom, mois, annee, salaire_brut, salaire_net, fichier_pdf, synced_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+             ON CONFLICT(matricule, mois, annee) DO UPDATE SET
+               nom=EXCLUDED.nom, prenom=EXCLUDED.prenom,
+               salaire_brut=EXCLUDED.salaire_brut, salaire_net=EXCLUDED.salaire_net,
+               fichier_pdf=EXCLUDED.fichier_pdf, synced_at=NOW()`,
+            [r.matricule, r.nom, r.prenom, r.mois, r.annee, r.salaire_brut, r.salaire_net, r.fichier_pdf]
           );
           count++;
         }
-        return count;
-      });
 
-      try {
-        const count = sync(results);
+        await client.query('COMMIT');
         res.json({ message: `Synchronisation réussie: ${count} bulletin(s) importé(s)`, count, errors });
       } catch (err) {
-        res.status(500).json({ message: 'Erreur lors de l\'insertion', error: err.message });
+        await client.query('ROLLBACK');
+        res.status(500).json({ message: "Erreur lors de l'insertion", error: err.message });
+      } finally {
+        client.release();
+        if (req.file) fs.unlinkSync(csvPath);
       }
-
-      if (req.file) fs.unlinkSync(csvPath);
     })
     .on('error', (err) => {
       res.status(500).json({ message: 'Erreur lecture CSV', error: err.message });

@@ -1,179 +1,214 @@
-const { db } = require('../database/db');
+const { pool } = require('../database/db');
 const path = require('path');
 const fs = require('fs');
 
 const DEFAULT_PIN = 'Crous2025';
 
-exports.getUsers = (req, res) => {
-  const users = db.prepare(`
-    SELECT matricule, nom, prenom, service, email, is_active, is_admin, first_login, created_at, updated_at
-    FROM employees ORDER BY created_at DESC
-  `).all();
-  res.json(users);
-};
-
-exports.createUser = (req, res) => {
-  const { matricule, nom, prenom, service, email, pin, is_admin = 0 } = req.body;
-  if (!matricule || !nom || !prenom || !service)
-    return res.status(400).json({ message: 'Matricule, nom, prénom et service requis' });
-
-  const effectivePin = pin?.trim() || DEFAULT_PIN;
-
+exports.getUsers = async (req, res, next) => {
   try {
-    db.prepare(`
-      INSERT INTO employees (matricule, nom, prenom, service, email, pin, is_admin, is_active, first_login)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1)
-    `).run(matricule.toUpperCase(), nom.trim(), prenom.trim(), service.trim(), email?.trim() || null, effectivePin, is_admin ? 1 : 0);
-
-    res.status(201).json({ message: 'Employé créé', matricule: matricule.toUpperCase(), pin: effectivePin });
-  } catch (e) {
-    if (e.message.includes('UNIQUE')) return res.status(409).json({ message: 'Ce matricule existe déjà' });
-    throw e;
+    const { rows } = await pool.query(
+      `SELECT matricule, nom, prenom, service, email, is_active, is_admin, first_login, created_at, updated_at
+       FROM employees ORDER BY created_at DESC`
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
   }
 };
 
-exports.updateUser = (req, res) => {
-  const { matricule } = req.params;
-  const { nom, prenom, service, email, is_admin, is_active } = req.body;
+exports.createUser = async (req, res, next) => {
+  try {
+    const { matricule, nom, prenom, service, email, pin, is_admin = 0 } = req.body;
+    if (!matricule || !nom || !prenom || !service)
+      return res.status(400).json({ message: 'Matricule, nom, prénom et service requis' });
 
-  const emp = db.prepare('SELECT * FROM employees WHERE matricule=?').get(matricule.toUpperCase());
-  if (!emp) return res.status(404).json({ message: 'Employé introuvable' });
+    const effectivePin = pin?.trim() || DEFAULT_PIN;
 
-  db.prepare(`
-    UPDATE employees SET nom=?, prenom=?, service=?, email=?, is_admin=?, is_active=?, updated_at=datetime('now')
-    WHERE matricule=?
-  `).run(
-    nom !== undefined ? nom.trim() : emp.nom,
-    prenom !== undefined ? prenom.trim() : emp.prenom,
-    service !== undefined ? service.trim() : emp.service,
-    email !== undefined ? (email.trim() || null) : emp.email,
-    is_admin !== undefined ? (is_admin ? 1 : 0) : emp.is_admin,
-    is_active !== undefined ? (is_active ? 1 : 0) : emp.is_active,
-    matricule.toUpperCase()
-  );
+    await pool.query(
+      `INSERT INTO employees (matricule, nom, prenom, service, email, pin, is_admin, is_active, first_login)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 1)`,
+      [matricule.toUpperCase(), nom.trim(), prenom.trim(), service.trim(), email?.trim() || null, effectivePin, is_admin ? 1 : 0]
+    );
 
-  res.json({ message: 'Employé mis à jour' });
+    res.status(201).json({ message: 'Employé créé', matricule: matricule.toUpperCase(), pin: effectivePin });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'Ce matricule existe déjà' });
+    next(err);
+  }
 };
 
-exports.deleteUser = (req, res) => {
-  const { matricule } = req.params;
-  if (matricule.toUpperCase() === req.user.matricule)
-    return res.status(400).json({ message: 'Vous ne pouvez pas supprimer votre propre compte' });
+exports.updateUser = async (req, res, next) => {
+  try {
+    const { matricule } = req.params;
+    const { nom, prenom, service, email, is_admin, is_active } = req.body;
 
-  const result = db.prepare('DELETE FROM employees WHERE matricule=?').run(matricule.toUpperCase());
-  if (result.changes === 0) return res.status(404).json({ message: 'Employé introuvable' });
-  res.json({ message: 'Employé supprimé' });
+    const { rows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [matricule.toUpperCase()]);
+    const emp = rows[0];
+    if (!emp) return res.status(404).json({ message: 'Employé introuvable' });
+
+    await pool.query(
+      `UPDATE employees SET nom=$1, prenom=$2, service=$3, email=$4, is_admin=$5, is_active=$6, updated_at=NOW()
+       WHERE matricule=$7`,
+      [
+        nom !== undefined ? nom.trim() : emp.nom,
+        prenom !== undefined ? prenom.trim() : emp.prenom,
+        service !== undefined ? service.trim() : emp.service,
+        email !== undefined ? (email.trim() || null) : emp.email,
+        is_admin !== undefined ? (is_admin ? 1 : 0) : emp.is_admin,
+        is_active !== undefined ? (is_active ? 1 : 0) : emp.is_active,
+        matricule.toUpperCase(),
+      ]
+    );
+
+    res.json({ message: 'Employé mis à jour' });
+  } catch (err) {
+    next(err);
+  }
 };
 
-exports.resetPassword = (req, res) => {
-  const { matricule } = req.params;
-  const { pin } = req.body;
+exports.deleteUser = async (req, res, next) => {
+  try {
+    const { matricule } = req.params;
+    if (matricule.toUpperCase() === req.user.matricule)
+      return res.status(400).json({ message: 'Vous ne pouvez pas supprimer votre propre compte' });
 
-  const emp = db.prepare('SELECT * FROM employees WHERE matricule=?').get(matricule.toUpperCase());
-  if (!emp) return res.status(404).json({ message: 'Employé introuvable' });
+    const result = await pool.query('DELETE FROM employees WHERE matricule=$1', [matricule.toUpperCase()]);
+    if (result.rowCount === 0) return res.status(404).json({ message: 'Employé introuvable' });
+    res.json({ message: 'Employé supprimé' });
+  } catch (err) {
+    next(err);
+  }
+};
 
-  const newPin = pin?.trim() || DEFAULT_PIN;
+exports.resetPassword = async (req, res, next) => {
+  try {
+    const { matricule } = req.params;
+    const { pin } = req.body;
 
-  db.prepare(`
-    UPDATE employees SET password_hash=NULL, is_active=0, first_login=1, pin=?, updated_at=datetime('now')
-    WHERE matricule=?
-  `).run(newPin, matricule.toUpperCase());
+    const { rows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [matricule.toUpperCase()]);
+    if (!rows[0]) return res.status(404).json({ message: 'Employé introuvable' });
 
-  res.json({ message: 'Mot de passe réinitialisé', pin: newPin });
+    const newPin = pin?.trim() || DEFAULT_PIN;
+
+    await pool.query(
+      `UPDATE employees SET password_hash=NULL, is_active=0, first_login=1, pin=$1, updated_at=NOW()
+       WHERE matricule=$2`,
+      [newPin, matricule.toUpperCase()]
+    );
+
+    res.json({ message: 'Mot de passe réinitialisé', pin: newPin });
+  } catch (err) {
+    next(err);
+  }
 };
 
 // ── Payslip management (admin) ───────────────────────────────────────────────
 
 const PDF_DIR = () => path.resolve(process.env.PDF_DIR || './pdf');
 
-exports.getPayslips = (req, res) => {
-  const { matricule } = req.params;
-  const rows = db.prepare(
-    'SELECT * FROM payslips WHERE matricule=? ORDER BY annee DESC, mois DESC'
-  ).all(matricule.toUpperCase());
-  res.json(rows);
+exports.getPayslips = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM payslips WHERE matricule=$1 ORDER BY annee DESC, mois DESC',
+      [req.params.matricule.toUpperCase()]
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
 };
 
-exports.addPayslip = (req, res) => {
-  const { matricule } = req.params;
-  const { mois, annee, salaire_brut, salaire_net } = req.body;
-
-  if (!mois || !annee || !salaire_brut || !salaire_net) {
-    if (req.file) fs.unlinkSync(req.file.path);
-    return res.status(400).json({ message: 'Mois, année, salaire brut et salaire net sont requis' });
-  }
-
-  const mat = matricule.toUpperCase();
-  const emp = db.prepare('SELECT nom, prenom FROM employees WHERE matricule=?').get(mat);
-  if (!emp) {
-    if (req.file) fs.unlinkSync(req.file.path);
-    return res.status(404).json({ message: 'Employé introuvable' });
-  }
-
-  const fichier_pdf = `${mat}_${annee}_${mois}.pdf`;
-  if (req.file) {
-    const dir = PDF_DIR();
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.renameSync(req.file.path, path.join(dir, fichier_pdf));
-  }
-
+exports.addPayslip = async (req, res, next) => {
   try {
-    db.prepare(`
-      INSERT INTO payslips (matricule, nom, prenom, mois, annee, salaire_brut, salaire_net, fichier_pdf, synced_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-      ON CONFLICT(matricule, mois, annee) DO UPDATE SET
-        salaire_brut=excluded.salaire_brut, salaire_net=excluded.salaire_net,
-        fichier_pdf=excluded.fichier_pdf, synced_at=excluded.synced_at
-    `).run(mat, emp.nom, emp.prenom, mois, parseInt(annee), parseFloat(salaire_brut), parseFloat(salaire_net), fichier_pdf);
+    const { matricule } = req.params;
+    const { mois, annee, salaire_brut, salaire_net } = req.body;
+
+    if (!mois || !annee || !salaire_brut || !salaire_net) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: 'Mois, année, salaire brut et salaire net sont requis' });
+    }
+
+    const mat = matricule.toUpperCase();
+    const { rows } = await pool.query('SELECT nom, prenom FROM employees WHERE matricule=$1', [mat]);
+    const emp = rows[0];
+    if (!emp) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(404).json({ message: 'Employé introuvable' });
+    }
+
+    const fichier_pdf = `${mat}_${annee}_${mois}.pdf`;
+    if (req.file) {
+      const dir = PDF_DIR();
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.renameSync(req.file.path, path.join(dir, fichier_pdf));
+    }
+
+    await pool.query(
+      `INSERT INTO payslips (matricule, nom, prenom, mois, annee, salaire_brut, salaire_net, fichier_pdf, synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+       ON CONFLICT(matricule, mois, annee) DO UPDATE SET
+         salaire_brut=EXCLUDED.salaire_brut, salaire_net=EXCLUDED.salaire_net,
+         fichier_pdf=EXCLUDED.fichier_pdf, synced_at=NOW()`,
+      [mat, emp.nom, emp.prenom, mois, parseInt(annee), parseFloat(salaire_brut), parseFloat(salaire_net), fichier_pdf]
+    );
 
     res.status(201).json({ message: 'Bulletin enregistré', fichier_pdf });
-  } catch (e) {
-    res.status(500).json({ message: "Erreur lors de l'enregistrement", error: e.message });
+  } catch (err) {
+    next(err);
   }
 };
 
-exports.updatePayslip = (req, res) => {
-  const { id } = req.params;
-  const { salaire_brut, salaire_net } = req.body;
+exports.updatePayslip = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { salaire_brut, salaire_net } = req.body;
 
-  const payslip = db.prepare('SELECT * FROM payslips WHERE id=?').get(parseInt(id));
-  if (!payslip) {
-    if (req.file) fs.unlinkSync(req.file.path);
-    return res.status(404).json({ message: 'Bulletin introuvable' });
+    const { rows } = await pool.query('SELECT * FROM payslips WHERE id=$1', [parseInt(id)]);
+    const payslip = rows[0];
+    if (!payslip) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(404).json({ message: 'Bulletin introuvable' });
+    }
+
+    let { fichier_pdf } = payslip;
+    if (req.file) {
+      const dir = PDF_DIR();
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      fs.renameSync(req.file.path, path.join(dir, fichier_pdf));
+    }
+
+    await pool.query(
+      `UPDATE payslips SET salaire_brut=$1, salaire_net=$2, fichier_pdf=$3, synced_at=NOW() WHERE id=$4`,
+      [
+        salaire_brut !== undefined ? parseFloat(salaire_brut) : payslip.salaire_brut,
+        salaire_net !== undefined ? parseFloat(salaire_net) : payslip.salaire_net,
+        fichier_pdf,
+        parseInt(id),
+      ]
+    );
+
+    res.json({ message: 'Bulletin mis à jour' });
+  } catch (err) {
+    next(err);
   }
-
-  let { fichier_pdf } = payslip;
-  if (req.file) {
-    const dir = PDF_DIR();
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.renameSync(req.file.path, path.join(dir, fichier_pdf));
-  }
-
-  db.prepare(`
-    UPDATE payslips SET
-      salaire_brut=?, salaire_net=?, fichier_pdf=?, synced_at=datetime('now')
-    WHERE id=?
-  `).run(
-    salaire_brut !== undefined ? parseFloat(salaire_brut) : payslip.salaire_brut,
-    salaire_net !== undefined ? parseFloat(salaire_net) : payslip.salaire_net,
-    fichier_pdf,
-    parseInt(id)
-  );
-
-  res.json({ message: 'Bulletin mis à jour' });
 };
 
-exports.deletePayslip = (req, res) => {
-  const { id } = req.params;
-  const payslip = db.prepare('SELECT * FROM payslips WHERE id=?').get(parseInt(id));
-  if (!payslip) return res.status(404).json({ message: 'Bulletin introuvable' });
+exports.deletePayslip = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query('SELECT * FROM payslips WHERE id=$1', [parseInt(id)]);
+    const payslip = rows[0];
+    if (!payslip) return res.status(404).json({ message: 'Bulletin introuvable' });
 
-  db.prepare('DELETE FROM payslips WHERE id=?').run(parseInt(id));
+    await pool.query('DELETE FROM payslips WHERE id=$1', [parseInt(id)]);
 
-  const filePath = path.join(PDF_DIR(), payslip.fichier_pdf);
-  if (fs.existsSync(filePath)) {
-    try { fs.unlinkSync(filePath); } catch {}
+    const filePath = path.join(PDF_DIR(), payslip.fichier_pdf);
+    if (fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath); } catch {}
+    }
+
+    res.json({ message: 'Bulletin supprimé' });
+  } catch (err) {
+    next(err);
   }
-
-  res.json({ message: 'Bulletin supprimé' });
 };
