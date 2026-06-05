@@ -18,6 +18,57 @@ import {
 const SERVICES = ['Informatique', 'Ressources Humaines', 'Finance', 'Direction', 'Logistique'];
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
+function PayslipFields({ form, setForm, pdfFileRef }) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box sx={{ display: 'flex', gap: 2 }}>
+        <TextField
+          select label="Mois" value={form.mois}
+          onChange={e => setForm(prev => ({ ...prev, mois: e.target.value }))}
+          required fullWidth size="small"
+        >
+          {MOIS.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+        </TextField>
+        <TextField
+          label="Année" type="number" value={form.annee}
+          onChange={e => setForm(prev => ({ ...prev, annee: e.target.value }))}
+          required fullWidth size="small"
+          inputProps={{ min: 2020, max: 2035 }}
+        />
+      </Box>
+      <Box sx={{ display: 'flex', gap: 2 }}>
+        <TextField
+          label="Salaire brut (FCFA)" type="number" value={form.salaire_brut}
+          onChange={e => setForm(prev => ({ ...prev, salaire_brut: e.target.value }))}
+          required fullWidth size="small"
+        />
+        <TextField
+          label="Salaire net (FCFA)" type="number" value={form.salaire_net}
+          onChange={e => setForm(prev => ({ ...prev, salaire_net: e.target.value }))}
+          required fullWidth size="small"
+        />
+      </Box>
+      <Box>
+        <Button
+          variant="outlined" size="small" startIcon={<UploadFileOutlined />}
+          onClick={() => pdfFileRef.current.click()} fullWidth
+        >
+          {form.pdfFile ? form.pdfFile.name : 'Joindre un PDF (optionnel)'}
+        </Button>
+        {form.pdfFile && (
+          <Typography variant="caption" color="success.main" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <PictureAsPdfOutlined sx={{ fontSize: 14 }} /> {form.pdfFile.name}
+          </Typography>
+        )}
+        <input
+          ref={pdfFileRef} type="file" accept=".pdf" style={{ display: 'none' }}
+          onChange={e => { setForm(prev => ({ ...prev, pdfFile: e.target.files[0] || null })); e.target.value = ''; }}
+        />
+      </Box>
+    </Box>
+  );
+}
+
 const EMPTY_FORM = { matricule: '', nom: '', prenom: '', service: '', email: '', pin: '', is_admin: false };
 const EMPTY_PAYSLIP = { mois: '', annee: new Date().getFullYear(), salaire_brut: '', salaire_net: '', pdfFile: null };
 
@@ -350,57 +401,6 @@ export default function AdminUsers() {
       )
     : users;
 
-  // ── PDF file picker for payslip form ────────────────────────────────────────
-
-  const PayslipFields = ({ form: f, setForm: sf }) => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', gap: 2 }}>
-        <TextField
-          select label="Mois" value={f.mois}
-          onChange={e => sf(prev => ({ ...prev, mois: e.target.value }))}
-          required fullWidth size="small"
-        >
-          {MOIS.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-        </TextField>
-        <TextField
-          label="Année" type="number" value={f.annee}
-          onChange={e => sf(prev => ({ ...prev, annee: e.target.value }))}
-          required fullWidth size="small"
-          inputProps={{ min: 2020, max: 2035 }}
-        />
-      </Box>
-      <Box sx={{ display: 'flex', gap: 2 }}>
-        <TextField
-          label="Salaire brut (FCFA)" type="number" value={f.salaire_brut}
-          onChange={e => sf(prev => ({ ...prev, salaire_brut: e.target.value }))}
-          required fullWidth size="small"
-        />
-        <TextField
-          label="Salaire net (FCFA)" type="number" value={f.salaire_net}
-          onChange={e => sf(prev => ({ ...prev, salaire_net: e.target.value }))}
-          required fullWidth size="small"
-        />
-      </Box>
-      <Box>
-        <Button
-          variant="outlined" size="small" startIcon={<UploadFileOutlined />}
-          onClick={() => pdfFileRef.current.click()} fullWidth
-        >
-          {f.pdfFile ? f.pdfFile.name : 'Joindre un PDF (optionnel)'}
-        </Button>
-        {f.pdfFile && (
-          <Typography variant="caption" color="success.main" sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <PictureAsPdfOutlined sx={{ fontSize: 14 }} /> {f.pdfFile.name}
-          </Typography>
-        )}
-        <input
-          ref={pdfFileRef} type="file" accept=".pdf" style={{ display: 'none' }}
-          onChange={e => { sf(prev => ({ ...prev, pdfFile: e.target.files[0] || null })); e.target.value = ''; }}
-        />
-      </Box>
-    </Box>
-  );
-
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
@@ -642,7 +642,7 @@ export default function AdminUsers() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Vous pouvez ajouter un premier bulletin de paie avec un PDF lors de la création de l'employé.
               </Typography>
-              <PayslipFields form={initialPayslip} setForm={setInitialPayslip} />
+              <PayslipFields form={initialPayslip} setForm={setInitialPayslip} pdfFileRef={pdfFileRef} />
             </Box>
           )}
         </DialogContent>
@@ -664,7 +664,7 @@ export default function AdminUsers() {
         <DialogContent dividers>
           {payslipError && <Alert severity="error" sx={{ mb: 2 }}>{payslipError}</Alert>}
           <Box sx={{ pt: 1 }}>
-            <PayslipFields form={payslipForm} setForm={setPayslipForm} />
+            <PayslipFields form={payslipForm} setForm={setPayslipForm} pdfFileRef={pdfFileRef} />
             {payslipEditTarget && (
               <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: 'block' }}>
                 La période (mois / année) ne peut pas être modifiée. Pour changer la période, supprimez ce bulletin et créez-en un nouveau.

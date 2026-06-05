@@ -67,16 +67,27 @@ exports.updateUser = async (req, res, next) => {
 };
 
 exports.deleteUser = async (req, res, next) => {
-  try {
-    const { matricule } = req.params;
-    if (matricule.toUpperCase() === req.user.matricule)
-      return res.status(400).json({ message: 'Vous ne pouvez pas supprimer votre propre compte' });
+  const { matricule } = req.params;
+  if (matricule.toUpperCase() === req.user.matricule)
+    return res.status(400).json({ message: 'Vous ne pouvez pas supprimer votre propre compte' });
 
-    const result = await pool.query('DELETE FROM employees WHERE matricule=$1', [matricule.toUpperCase()]);
-    if (result.rowCount === 0) return res.status(404).json({ message: 'Employé introuvable' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const check = await client.query('SELECT 1 FROM employees WHERE matricule=$1', [matricule.toUpperCase()]);
+    if (check.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Employé introuvable' });
+    }
+    await client.query('DELETE FROM payslips WHERE matricule=$1', [matricule.toUpperCase()]);
+    await client.query('DELETE FROM employees WHERE matricule=$1', [matricule.toUpperCase()]);
+    await client.query('COMMIT');
     res.json({ message: 'Employé supprimé' });
   } catch (err) {
+    await client.query('ROLLBACK');
     next(err);
+  } finally {
+    client.release();
   }
 };
 

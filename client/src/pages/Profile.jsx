@@ -16,8 +16,8 @@ function passwordStrength(pwd) {
   if (/[^A-Za-z0-9]/.test(pwd)) s++;
   return s;
 }
-const STRENGTH = ['', 'Faible', 'Moyen', 'Fort', 'Très fort'];
-const COLORS = ['', '#f57c00', '#f9a825', '#388e3c', '#1b5e20'];
+const STRENGTH = ['Très faible', 'Faible', 'Moyen', 'Fort', 'Très fort'];
+const COLORS = ['#c62828', '#f57c00', '#f9a825', '#388e3c', '#1b5e20'];
 
 export default function Profile() {
   const { user } = useAuth();

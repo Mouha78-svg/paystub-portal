@@ -8,7 +8,7 @@ import {
   Alert, Stepper, Step, StepLabel, InputAdornment, IconButton,
   CircularProgress, LinearProgress
 } from '@mui/material';
-import { Visibility, VisibilityOff, LockResetOutlined, CheckCircleOutline, AccountBalanceOutlined } from '@mui/icons-material';
+import { Visibility, VisibilityOff, LockResetOutlined, CheckCircleOutline } from '@mui/icons-material';
 
 function passwordStrength(pwd) {
   let score = 0;
