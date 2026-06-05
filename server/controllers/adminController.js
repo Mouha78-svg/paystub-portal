@@ -1,4 +1,5 @@
 const { pool } = require('../database/db');
+const { MONTH_ORDER_SQL, pdfFileName } = require('../utils/monthOrder');
 const path = require('path');
 const fs = require('fs');
 
@@ -120,7 +121,7 @@ const PDF_DIR = () => path.resolve(process.env.PDF_DIR || './pdf');
 exports.getPayslips = async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      'SELECT * FROM payslips WHERE matricule=$1 ORDER BY annee DESC, mois DESC',
+      `SELECT * FROM payslips WHERE matricule=$1 ORDER BY annee DESC, ${MONTH_ORDER_SQL} DESC`,
       [req.params.matricule.toUpperCase()]
     );
     res.json(rows);
@@ -147,7 +148,7 @@ exports.addPayslip = async (req, res, next) => {
       return res.status(404).json({ message: 'Employé introuvable' });
     }
 
-    const fichier_pdf = `${mat}_${annee}_${mois}.pdf`;
+    const fichier_pdf = pdfFileName(mat, annee, mois);
     if (req.file) {
       const dir = PDF_DIR();
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -183,6 +184,10 @@ exports.updatePayslip = async (req, res, next) => {
 
     let { fichier_pdf } = payslip;
     if (req.file) {
+      // Reuse the existing filename when present, otherwise derive the
+      // canonical one — the stored name may be null for records created
+      // without a PDF, and path.join() would throw on a null segment.
+      if (!fichier_pdf) fichier_pdf = pdfFileName(payslip.matricule, payslip.annee, payslip.mois);
       const dir = PDF_DIR();
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.renameSync(req.file.path, path.join(dir, fichier_pdf));
@@ -213,9 +218,11 @@ exports.deletePayslip = async (req, res, next) => {
 
     await pool.query('DELETE FROM payslips WHERE id=$1', [parseInt(id)]);
 
-    const filePath = path.join(PDF_DIR(), payslip.fichier_pdf);
-    if (fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch {}
+    if (payslip.fichier_pdf) {
+      const filePath = path.join(PDF_DIR(), payslip.fichier_pdf);
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch {}
+      }
     }
 
     res.json({ message: 'Bulletin supprimé' });

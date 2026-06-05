@@ -25,22 +25,26 @@ exports.login = async (req, res, next) => {
     if (!matricule || !password)
       return res.status(400).json({ message: 'Matricule et mot de passe requis' });
 
-    if (await checkRateLimit(matricule))
+    // Normalize so rate limiting and attempt logging key on the same value the
+    // employee lookup uses — otherwise case variation bypasses the per-account limit.
+    const mat = matricule.toUpperCase();
+
+    if (await checkRateLimit(mat))
       return res.status(429).json({ message: 'Trop de tentatives. Réessayez dans 15 minutes.' });
 
-    const { rows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [matricule.toUpperCase()]);
+    const { rows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [mat]);
     const employee = rows[0];
     if (!employee) {
-      await recordAttempt(matricule, req.ip, false);
+      await recordAttempt(mat, req.ip, false);
       return res.status(401).json({ message: 'Identifiants incorrects' });
     }
 
     if (employee.first_login) {
       if (password !== employee.pin) {
-        await recordAttempt(matricule, req.ip, false);
+        await recordAttempt(mat, req.ip, false);
         return res.status(401).json({ message: 'Code PIN incorrect' });
       }
-      await recordAttempt(matricule, req.ip, true);
+      await recordAttempt(mat, req.ip, true);
       const tempToken = jwt.sign(
         { matricule: employee.matricule, first_login: true },
         process.env.JWT_SECRET,
@@ -54,14 +58,14 @@ exports.login = async (req, res, next) => {
 
     const valid = bcrypt.compareSync(password, employee.password_hash);
     if (!valid) {
-      await recordAttempt(matricule, req.ip, false);
+      await recordAttempt(mat, req.ip, false);
       return res.status(401).json({ message: 'Identifiants incorrects' });
     }
 
     if (!employee.is_active)
       return res.status(403).json({ message: 'Compte désactivé. Contactez les RH.' });
 
-    await recordAttempt(matricule, req.ip, true);
+    await recordAttempt(mat, req.ip, true);
     const token = jwt.sign(
       { matricule: employee.matricule, nom: employee.nom, prenom: employee.prenom, service: employee.service, is_admin: employee.is_admin },
       process.env.JWT_SECRET,

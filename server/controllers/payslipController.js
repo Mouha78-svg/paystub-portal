@@ -1,4 +1,5 @@
 const { pool } = require('../database/db');
+const { MONTH_ORDER_SQL, pdfFileName } = require('../utils/monthOrder');
 const path = require('path');
 const fs = require('fs');
 const puppeteer = require('puppeteer');
@@ -22,7 +23,7 @@ exports.getAll = async (req, res, next) => {
       countQuery += ` AND annee=$2`;
     }
 
-    query += ` ORDER BY annee DESC, mois DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` ORDER BY annee DESC, ${MONTH_ORDER_SQL} DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), parseInt(offset));
 
     const [{ rows }, { rows: countRows }] = await Promise.all([
@@ -43,7 +44,7 @@ exports.getByMatricule = async (req, res, next) => {
     if (req.user.matricule !== matricule) return res.status(403).json({ message: 'Accès refusé' });
 
     const { rows } = await pool.query(
-      'SELECT * FROM payslips WHERE matricule=$1 ORDER BY annee DESC, mois DESC',
+      `SELECT * FROM payslips WHERE matricule=$1 ORDER BY annee DESC, ${MONTH_ORDER_SQL} DESC`,
       [matricule]
     );
     res.json(rows);
@@ -90,10 +91,13 @@ exports.download = async (req, res, next) => {
     if (!payslip) return res.status(404).json({ message: 'Bulletin introuvable ou accès refusé' });
 
     const pdfDir = process.env.PDF_DIR || './pdf';
-    const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
+    const downloadName = payslip.fichier_pdf || pdfFileName(payslip.matricule, payslip.annee, payslip.mois);
 
-    if (fs.existsSync(filePath)) {
-      return res.download(filePath, payslip.fichier_pdf);
+    if (payslip.fichier_pdf) {
+      const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
+      if (fs.existsSync(filePath)) {
+        return res.download(filePath, payslip.fichier_pdf);
+      }
     }
 
     const { rows: empRows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [payslip.matricule]);
@@ -117,7 +121,7 @@ exports.download = async (req, res, next) => {
     }
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${payslip.fichier_pdf}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
     return res.end(pdfBuffer);
   } catch (err) {
     console.error('PDF generation error:', err);

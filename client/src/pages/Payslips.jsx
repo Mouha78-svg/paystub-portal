@@ -18,7 +18,7 @@ const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août'
 function PayslipRow({ p, onDownload, downloading }) {
   const [expanded, setExpanded] = useState(false);
   const fmt = n => new Intl.NumberFormat('fr-SN', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(n);
-  const pct = ((1 - p.salaire_net / p.salaire_brut) * 100).toFixed(1);
+  const pct = p.salaire_brut > 0 ? Math.max(0, (1 - p.salaire_net / p.salaire_brut) * 100).toFixed(1) : '0.0';
 
   return (
     <>
@@ -64,7 +64,7 @@ function PayslipRow({ p, onDownload, downloading }) {
                   { label: 'Salaire brut', value: fmt(p.salaire_brut), color: 'text.primary' },
                   { label: 'CNSS (5.7%)', value: `− ${fmt(p.salaire_brut * 0.057)}`, color: 'error.main' },
                   { label: 'IPRES (5.6%)', value: `− ${fmt(p.salaire_brut * 0.056)}`, color: 'error.main' },
-                  { label: 'Autres retenues', value: `− ${fmt(p.salaire_brut - p.salaire_net - p.salaire_brut * 0.113)}`, color: 'error.main' },
+                  { label: 'Autres retenues', value: `− ${fmt(Math.max(0, p.salaire_brut - p.salaire_net - p.salaire_brut * 0.113))}`, color: 'error.main' },
                   { label: 'Net à payer', value: fmt(p.salaire_net), color: 'success.main' },
                 ].map(item => (
                   <Grid item xs={6} sm={4} key={item.label}>
