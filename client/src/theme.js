@@ -3,10 +3,14 @@ import { createTheme } from '@mui/material/styles';
 const theme = createTheme({
   palette: {
     mode: 'light',
-    primary: { main: '#7D3C00', light: '#A85C26', dark: '#4E2500', contrastText: '#fff' },
-    secondary: { main: '#C68B2E', light: '#E4AA4E', dark: '#8B6200', contrastText: '#fff' },
+    // Numbered shades (50/100/200/300) are referenced throughout the pages for
+    // subtle backgrounds and borders. MUI does not generate them automatically
+    // for custom colors, so they are defined explicitly here.
+    primary: { main: '#7D3C00', light: '#A85C26', dark: '#4E2500', contrastText: '#fff', 50: '#F6EEE6', 100: '#E9D5C2', 200: '#D3AB85' },
+    secondary: { main: '#C68B2E', light: '#E4AA4E', dark: '#8B6200', contrastText: '#fff', 50: '#FBF4E7', 100: '#F3E0BE', 200: '#E4C285' },
+    info: { main: '#0288d1', light: '#03a9f4', dark: '#01579b', contrastText: '#fff', 50: '#E1F5FE', 100: '#B3E5FC', 200: '#81D4FA' },
+    success: { main: '#2e7d32', light: '#4caf50', dark: '#1b5e20', contrastText: '#fff', 50: '#E8F5E9', 100: '#C8E6C9', 300: '#81C784' },
     background: { default: '#f0f2f8', paper: '#ffffff' },
-    success: { main: '#2e7d32' },
     error: { main: '#c62828' },
   },
   typography: {
