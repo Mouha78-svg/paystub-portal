@@ -1,0 +1,22 @@
+[build]
+  base    = "client"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Proxy /api/* to the external Express backend.
+# Set VITE_API_URL in the Netlify dashboard → Site configuration → Environment variables.
+# Example: https://your-backend.railway.app
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://your-backend.railway.app/api/:splat"
+  status = 200
+  force  = true
+
+# SPA fallback — let React Router handle all client-side routes.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
