@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
@@ -14,13 +14,14 @@ import {
   InputAdornment,
   IconButton,
   CircularProgress,
-  Divider,
+  Link,
 } from "@mui/material";
 import {
   Visibility,
   VisibilityOff,
   BadgeOutlined,
   LockOutlined,
+  PersonAddOutlined,
 } from "@mui/icons-material";
 
 export default function Login() {
@@ -174,29 +175,20 @@ export default function Login() {
                   "Se connecter"
                 )}
               </Button>
+
+              <Button
+                component={RouterLink}
+                to="/register"
+                variant="outlined"
+                fullWidth
+                size="large"
+                startIcon={<PersonAddOutlined />}
+                sx={{ mt: 1.5 }}
+              >
+                Créer un compte
+              </Button>
             </Box>
 
-            <Divider sx={{ my: 3 }} />
-            <Alert severity="info" icon={false} sx={{ fontSize: 12 }}>
-              <strong>Démo :</strong>
-              <br />
-              Première connexion : EMP001 / <strong>Crous2025</strong>
-              <br />
-              Compte activé : EMP003 / <strong>Admin123!</strong>
-              <br />
-              <Typography
-                component="span"
-                sx={{
-                  fontSize: 11,
-                  color: "text.secondary",
-                  display: "block",
-                  mt: 0.5,
-                }}
-              >
-                Mot de passe par défaut (1ère connexion) :{" "}
-                <strong>Crous2025</strong>
-              </Typography>
-            </Alert>
           </CardContent>
         </Card>
       </Box>

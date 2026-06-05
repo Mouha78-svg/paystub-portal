@@ -6,6 +6,8 @@ import PrivateRoute from './components/PrivateRoute';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import FirstLogin from './pages/FirstLogin';
+import Register from './pages/Register';
+import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import Payslips from './pages/Payslips';
 import Profile from './pages/Profile';
@@ -25,6 +27,8 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/first-login" element={<FirstLogin />} />
             <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
               <Route index element={<Navigate to="/dashboard" replace />} />

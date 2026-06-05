@@ -1,8 +1,7 @@
 const { pool } = require('../database/db');
 const path = require('path');
 const fs = require('fs');
-
-const DEFAULT_PIN = 'Crous2025';
+const { generatePin } = require('../utils/generatePin');
 
 exports.getUsers = async (req, res, next) => {
   try {
@@ -22,7 +21,7 @@ exports.createUser = async (req, res, next) => {
     if (!matricule || !nom || !prenom || !service)
       return res.status(400).json({ message: 'Matricule, nom, prénom et service requis' });
 
-    const effectivePin = pin?.trim() || DEFAULT_PIN;
+    const effectivePin = pin?.trim() || generatePin();
 
     await pool.query(
       `INSERT INTO employees (matricule, nom, prenom, service, email, pin, is_admin, is_active, first_login)
@@ -99,7 +98,7 @@ exports.resetPassword = async (req, res, next) => {
     const { rows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [matricule.toUpperCase()]);
     if (!rows[0]) return res.status(404).json({ message: 'Employé introuvable' });
 
-    const newPin = pin?.trim() || DEFAULT_PIN;
+    const newPin = pin?.trim() || generatePin();
 
     await pool.query(
       `UPDATE employees SET password_hash=NULL, is_active=0, first_login=1, pin=$1, updated_at=NOW()

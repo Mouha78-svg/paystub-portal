@@ -35,3 +35,6 @@ server/pdf/*.pdf
 
 # CSV uploads
 server/uploads/
+
+# Local Netlify folder
+.netlify

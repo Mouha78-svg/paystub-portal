@@ -14,6 +14,7 @@ async function initDB() {
       prenom TEXT NOT NULL,
       service TEXT NOT NULL,
       email TEXT,
+      genre TEXT,
       password_hash TEXT,
       pin TEXT NOT NULL,
       is_active INTEGER DEFAULT 0,
@@ -23,6 +24,9 @@ async function initDB() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  // Add genre column to existing tables that predate the column
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS genre TEXT`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payslips (
@@ -50,6 +54,26 @@ async function initDB() {
       attempted_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS registration_requests (
+      id SERIAL PRIMARY KEY,
+      matricule TEXT NOT NULL,
+      nom TEXT NOT NULL,
+      prenom TEXT NOT NULL,
+      service TEXT NOT NULL,
+      email TEXT NOT NULL,
+      genre TEXT NOT NULL,
+      pin TEXT NOT NULL DEFAULT '',
+      verification_code TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(matricule),
+      UNIQUE(email)
+    )
+  `);
+
+  await pool.query(`ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS pin TEXT NOT NULL DEFAULT ''`);
 
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_payslips_matricule ON payslips(matricule)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_payslips_annee ON payslips(annee)`);
