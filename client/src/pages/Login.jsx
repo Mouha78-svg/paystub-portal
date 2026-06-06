@@ -22,6 +22,7 @@ import {
   BadgeOutlined,
   LockOutlined,
   PersonAddOutlined,
+  LockResetOutlined,
 } from "@mui/icons-material";
 
 export default function Login() {
@@ -186,6 +187,18 @@ export default function Login() {
                 sx={{ mt: 1.5 }}
               >
                 Créer un compte
+              </Button>
+
+              <Button
+                component={RouterLink}
+                to="/forgot-password"
+                variant="text"
+                fullWidth
+                size="large"
+                startIcon={<LockResetOutlined />}
+                sx={{ mt: 1 }}
+              >
+                Mot de passe oublié ?
               </Button>
             </Box>
 

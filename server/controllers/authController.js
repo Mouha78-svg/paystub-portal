@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../database/db');
+const { sendPasswordResetEmail } = require('../utils/mailer');
+const { generatePin } = require('../utils/generatePin');
 
 async function recordAttempt(matricule, ip, success) {
   await pool.query(
@@ -146,6 +148,39 @@ exports.updatePassword = async (req, res, next) => {
     );
 
     res.json({ message: 'Mot de passe mis à jour avec succès' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.forgotPassword = async (req, res, next) => {
+  const GENERIC_OK = { message: 'Si ces informations correspondent à un compte, un email a été envoyé.' };
+  try {
+    const { matricule, email } = req.body;
+    if (!matricule || !email)
+      return res.status(400).json({ message: 'Matricule et email requis' });
+
+    const { rows } = await pool.query(
+      'SELECT * FROM employees WHERE matricule=$1',
+      [matricule.toUpperCase()]
+    );
+    const employee = rows[0];
+
+    // Always return the same message to avoid user enumeration
+    if (!employee || !employee.email || employee.email.toLowerCase() !== email.toLowerCase().trim())
+      return res.json(GENERIC_OK);
+
+    const newPin = generatePin();
+
+    await pool.query(
+      `UPDATE employees SET password_hash=NULL, is_active=0, first_login=1, pin=$1, updated_at=NOW()
+       WHERE matricule=$2`,
+      [newPin, employee.matricule]
+    );
+
+    await sendPasswordResetEmail(employee.email, employee.prenom, newPin);
+
+    res.json(GENERIC_OK);
   } catch (err) {
     next(err);
   }

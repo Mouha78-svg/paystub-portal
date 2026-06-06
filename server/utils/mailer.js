@@ -36,4 +36,30 @@ async function sendVerificationEmail(to, prenom, code) {
   });
 }
 
-module.exports = { sendVerificationEmail };
+async function sendPasswordResetEmail(to, prenom, pin) {
+  await transporter.sendMail({
+    from: `"Portail RH UGB-CROUS-SL" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+    to,
+    subject: 'Portail RH – Réinitialisation de votre mot de passe',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; color: #333;">
+        <div style="background: #7D3C00; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+          <h2 style="color: #fff; margin: 0;">Portail RH UGB-CROUS-SL</h2>
+        </div>
+        <div style="background: #fafafa; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #eee;">
+          <p>Bonjour <strong>${prenom}</strong>,</p>
+          <p>Suite à votre demande, voici votre nouveau code PIN de premier accès :</p>
+          <div style="background: #fff; border: 2px solid #7D3C00; border-radius: 8px; padding: 24px; text-align: center; margin: 24px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #7D3C00;">${pin}</span>
+          </div>
+          <p>Connectez-vous avec votre matricule et ce code PIN, puis définissez un nouveau mot de passe.</p>
+          <p style="color: #888; font-size: 12px; margin-top: 24px;">
+            Si vous n'avez pas demandé cette réinitialisation, ignorez cet email et contactez les RH.
+          </p>
+        </div>
+      </div>
+    `,
+  });
+}
+
+module.exports = { sendVerificationEmail, sendPasswordResetEmail };
