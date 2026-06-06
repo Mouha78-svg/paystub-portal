@@ -6,9 +6,9 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Proxy /api/* to the external Express backend.
-# Set VITE_API_URL in the Netlify dashboard → Site configuration → Environment variables.
-# Example: https://paystub-portal-production.up.railway.app
+# Proxy /api/* to the Express backend (hosted on Railway).
+# NOTE: Netlify does not support env var interpolation in redirect "to" fields —
+# update the URL below directly whenever the Railway deployment URL changes.
 [[redirects]]
   from   = "/api/*"
   to     = "https://paystub-portal-production.up.railway.app/api/:splat"
