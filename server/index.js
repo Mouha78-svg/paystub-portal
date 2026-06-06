@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
+const fs = require('fs');
 const { initDB } = require('./database/db');
 
 const app = express();
@@ -30,14 +31,16 @@ app.use('/api/admin', require('./routes/admin'));
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// Serve React build in production
+// Serve React build in production (local monolith only — skipped on Railway where client/dist doesn't exist)
 if (process.env.NODE_ENV === 'production') {
   const clientBuild = path.join(__dirname, '../client/dist');
-  app.use(express.static(clientBuild));
-  app.get('*', (req, res) => res.sendFile(path.join(clientBuild, 'index.html')));
+  if (fs.existsSync(clientBuild)) {
+    app.use(express.static(clientBuild));
+    app.get('*', (req, res) => res.sendFile(path.join(clientBuild, 'index.html')));
+  }
 }
 
-// 404 (dev only — production falls through to React above)
+// 404
 app.use((req, res) => res.status(404).json({ message: 'Endpoint introuvable' }));
 
 // Error handler
