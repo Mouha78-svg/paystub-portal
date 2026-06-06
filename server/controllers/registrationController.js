@@ -16,7 +16,9 @@ exports.register = async (req, res, next) => {
     const upper = matricule.toUpperCase();
 
     const { rows: existing } = await pool.query(
-      'SELECT matricule FROM employees WHERE matricule=$1 OR email=$2',
+      `SELECT matricule FROM employees WHERE matricule=$1 OR email=$2
+       UNION
+       SELECT matricule FROM registration_requests WHERE matricule=$1 OR email=$2`,
       [upper, email.toLowerCase()]
     );
     if (existing.length > 0)
