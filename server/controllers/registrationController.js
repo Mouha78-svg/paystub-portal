@@ -34,7 +34,12 @@ exports.register = async (req, res, next) => {
       [upper, nom.trim(), prenom.trim(), service.trim(), email.toLowerCase(), genre, code, expiresAt]
     );
 
-    await sendVerificationEmail(email, prenom, code);
+    try {
+      await sendVerificationEmail(email, prenom, code);
+    } catch (mailErr) {
+      await pool.query('DELETE FROM registration_requests WHERE matricule=$1', [upper]);
+      return res.status(503).json({ message: 'Le service d\'email est temporairement indisponible. Veuillez réessayer plus tard ou contacter les RH.' });
+    }
 
     res.json({ message: 'Code de vérification envoyé', email: email.replace(/(.{2}).+(@.+)/, '$1***$2') });
   } catch (err) {

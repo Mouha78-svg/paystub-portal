@@ -172,13 +172,17 @@ exports.forgotPassword = async (req, res, next) => {
 
     const newPin = generatePin();
 
+    try {
+      await sendPasswordResetEmail(employee.email, employee.prenom, newPin);
+    } catch (mailErr) {
+      return res.status(503).json({ message: 'Le service d\'email est temporairement indisponible. Veuillez réessayer plus tard ou contacter les RH.' });
+    }
+
     await pool.query(
       `UPDATE employees SET password_hash=NULL, is_active=0, first_login=1, pin=$1, updated_at=NOW()
        WHERE matricule=$2`,
       [newPin, employee.matricule]
     );
-
-    await sendPasswordResetEmail(employee.email, employee.prenom, newPin);
 
     res.json(GENERIC_OK);
   } catch (err) {
