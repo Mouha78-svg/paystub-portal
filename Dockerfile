@@ -26,9 +26,9 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
-COPY package*.json ./
+COPY server/package*.json ./
 RUN npm install --omit=dev
-COPY . .
+COPY server/ .
 
 RUN mkdir -p pdf csv
 
