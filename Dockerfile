@@ -1,3 +1,12 @@
+# Stage 1 — build React frontend
+FROM node:20-slim AS client-builder
+WORKDIR /client
+COPY client/package*.json ./
+RUN npm install
+COPY client/ .
+RUN npm run build
+
+# Stage 2 — production server
 FROM node:20-slim
 
 # Chromium and its dependencies for Puppeteer
@@ -30,7 +39,11 @@ COPY server/package*.json ./
 RUN npm install --omit=dev
 COPY server/ .
 
+# Place the React build where the server expects it: ../client/dist relative to /app
+COPY --from=client-builder /client/dist /client/dist
+
 RUN mkdir -p pdf csv
 
+ENV NODE_ENV=production
 EXPOSE 5000
 CMD ["node", "index.js"]
