@@ -83,22 +83,23 @@ async function initDB() {
   const { rows } = await pool.query('SELECT COUNT(*) as cnt FROM employees');
   if (parseInt(rows[0].cnt) === 0) {
     const bcrypt = require('bcryptjs');
+    const { generatePin } = require('../utils/generatePin');
     const demoHash = bcrypt.hashSync('Admin123!', 10);
-    const DEFAULT_PIN = 'Crous2025';
+    const pin1 = generatePin();
+    const pin2 = generatePin();
+    const pin3 = generatePin();
     await pool.query(
       `INSERT INTO employees (matricule, nom, prenom, service, email, password_hash, pin, is_active, is_admin, first_login)
        VALUES
          ('EMP001','Seye','Mouhamed','Informatique','mouhamed.seye@acme.sn',NULL,$1,0,0,1),
-         ('EMP002','Diallo','Fatou','Ressources Humaines','fatou.diallo@acme.sn',NULL,$1,0,0,1),
-         ('EMP003','Ndiaye','Ousmane','Finance','ousmane.ndiaye@acme.sn',$2,$1,1,1,0)`,
-      [DEFAULT_PIN, demoHash]
+         ('EMP002','Diallo','Fatou','Ressources Humaines','fatou.diallo@acme.sn',NULL,$2,0,0,1),
+         ('EMP003','Ndiaye','Ousmane','Finance','ousmane.ndiaye@acme.sn',$3,$4,1,1,0)`,
+      [pin1, pin2, demoHash, pin3]
     );
     console.log('✅ Données de démonstration insérées');
-  } else {
-    await pool.query(
-      `UPDATE employees SET pin=$1 WHERE matricule IN ('EMP001','EMP002') AND first_login=1`,
-      ['Crous2025']
-    );
+    console.log(`   EMP001 PIN: ${pin1}`);
+    console.log(`   EMP002 PIN: ${pin2}`);
+    console.log(`   EMP003 mot de passe: Admin123!`);
   }
 
   console.log('✅ Base de données initialisée');

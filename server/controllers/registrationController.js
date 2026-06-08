@@ -1,5 +1,6 @@
 const { pool } = require('../database/db');
 const { sendVerificationEmail } = require('../utils/mailer');
+const { generatePin } = require('../utils/generatePin');
 
 function generateCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -105,10 +106,12 @@ exports.verifyRegistration = async (req, res, next) => {
     if (!employee)
       return res.status(404).json({ message: 'Employé introuvable' });
 
-    // Only update the email — all other fields were set by HR via CSV
+    const newPin = generatePin();
+
+    // Update email and assign a fresh random PIN — replaces any default PIN set at account creation
     await pool.query(
-      'UPDATE employees SET email=$1, updated_at=NOW() WHERE matricule=$2',
-      [request.email, upper]
+      'UPDATE employees SET email=$1, pin=$2, updated_at=NOW() WHERE matricule=$3',
+      [request.email, newPin, upper]
     );
 
     await pool.query('DELETE FROM registration_requests WHERE matricule=$1', [upper]);
@@ -116,7 +119,7 @@ exports.verifyRegistration = async (req, res, next) => {
     res.json({
       message: 'Email vérifié avec succès. Vous pouvez maintenant vous connecter.',
       matricule: upper,
-      pin: employee.pin,
+      pin: newPin,
     });
   } catch (err) {
     next(err);

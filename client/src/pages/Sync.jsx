@@ -7,7 +7,8 @@ import {
 } from '@mui/material';
 import {
   SyncOutlined, UploadFileOutlined, CheckCircleOutline,
-  WarningAmberOutlined, InfoOutlined, FolderZipOutlined, PictureAsPdfOutlined
+  WarningAmberOutlined, InfoOutlined, FolderZipOutlined, PictureAsPdfOutlined,
+  AutoStoriesOutlined,
 } from '@mui/icons-material';
 
 export default function Sync() {
@@ -15,11 +16,13 @@ export default function Sync() {
   const [syncing, setSyncing] = useState(false);
   const [uploadingZip, setUploadingZip] = useState(false);
   const [uploadingPdfs, setUploadingPdfs] = useState(false);
+  const [uploadingBulletin, setUploadingBulletin] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const fileRef = useRef();
   const zipRef = useRef();
   const pdfsRef = useRef();
+  const bulletinRef = useRef();
 
   const runSync = async (url, formData) => {
     setError(''); setResult(null);
@@ -72,6 +75,17 @@ export default function Sync() {
     e.target.value = '';
   };
 
+  const handleBulletinUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingBulletin(true);
+    const fd = new FormData();
+    fd.append('bulletin', file);
+    await runSync('/sync/bulletin-pdf', fd);
+    setUploadingBulletin(false);
+    e.target.value = '';
+  };
+
   return (
     <Box>
       <Typography variant="h5" sx={{ mb: 1 }}>Synchronisation</Typography>
@@ -107,17 +121,17 @@ export default function Sync() {
             <Box>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Fichiers PDF (nommage requis)</Typography>
               <Paper sx={{ bgcolor: 'grey.900', p: 2, borderRadius: 2, fontFamily: 'monospace', fontSize: 11, color: '#ff8a65', overflow: 'auto' }}>
-                {'MATRICULE_ANNEE_MOIS.pdf\n\n'}
-                {'EMP001_2025_Janvier.pdf\n'}
-                {'EMP002_2025_Mars.pdf\n'}
-                {'EMP003_2024_Décembre.pdf'}
+                {'MATRICULE_ANNEE_MM.pdf\n\n'}
+                {'0001_2020_04.pdf\n'}
+                {'0003_2020_04.pdf\n'}
+                {'EMP001_2025_01.pdf'}
               </Paper>
             </Box>
           </Box>
         </CardContent>
       </Card>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: '1fr 1fr 1fr 1fr' }, gap: 3, mb: 3 }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', lg: 'repeat(5, 1fr)' }, gap: 3, mb: 3 }}>
         {/* CSV Upload */}
         <Card>
           <CardContent sx={{ p: 3 }}>
@@ -190,6 +204,30 @@ export default function Sync() {
           </CardContent>
         </Card>
 
+        {/* Bulletin PDF multi-pages */}
+        <Card>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <AutoStoriesOutlined sx={{ color: 'warning.main' }} />
+              <Typography fontWeight={600}>Bulletin PDF</Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Importez un PDF multi-pages (ex : fichier mensuel complet). Chaque page est extraite et associée automatiquement à son employé.
+            </Typography>
+            <Box onClick={() => bulletinRef.current.click()} sx={{
+              border: '2px dashed', borderColor: 'warning.300', borderRadius: 3, p: 3,
+              textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s',
+              '&:hover': { borderColor: 'warning.main', bgcolor: 'warning.50' }
+            }}>
+              <AutoStoriesOutlined sx={{ fontSize: 36, color: 'warning.main', mb: 0.5 }} />
+              <Typography fontWeight={500} fontSize={14}>Choisir un fichier</Typography>
+              <Typography variant="caption" color="text.secondary">.pdf — multi-pages</Typography>
+            </Box>
+            <input ref={bulletinRef} type="file" accept=".pdf" style={{ display: 'none' }} onChange={handleBulletinUpload} />
+            {uploadingBulletin && <LinearProgress color="warning" sx={{ mt: 2 }} />}
+          </CardContent>
+        </Card>
+
         {/* Local sync */}
         <Card>
           <CardContent sx={{ p: 3 }}>
@@ -222,6 +260,9 @@ export default function Sync() {
               <Typography fontWeight={600} color="success.main">Synchronisation réussie</Typography>
               {result.count != null && (
                 <Chip label={`${result.count} bulletin(s)`} color="success" size="small" />
+              )}
+              {result.saved != null && (
+                <Chip label={`${result.saved} / ${result.total} page(s) extraite(s)`} color="success" size="small" />
               )}
               {result.pdfsImported != null && (
                 <Chip label={`${result.pdfsImported} PDF(s) importé(s)`} color="info" size="small" />

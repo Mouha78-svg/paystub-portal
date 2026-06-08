@@ -118,6 +118,7 @@ export default function AdminUsers() {
   // Quick reset to default dialog
   const [quickResetTarget, setQuickResetTarget] = useState(null);
   const [quickResetting, setQuickResetting] = useState(false);
+  const [quickResetResult, setQuickResetResult] = useState(null);
 
   // Reset password dialog
   const [resetTarget, setResetTarget] = useState(null);
@@ -335,9 +336,8 @@ export default function AdminUsers() {
   const handleQuickReset = async () => {
     setQuickResetting(true);
     try {
-      await api.post(`/admin/users/${quickResetTarget.matricule}/reset-password`, {});
-      setSnack(`Mot de passe de ${quickResetTarget.prenom} ${quickResetTarget.nom} réinitialisé au défaut (Crous2025).`);
-      setQuickResetTarget(null);
+      const { data } = await api.post(`/admin/users/${quickResetTarget.matricule}/reset-password`, {});
+      setQuickResetResult(data.pin);
       fetchUsers();
     } catch (e) {
       setError(e.response?.data?.message || 'Erreur lors de la réinitialisation');
@@ -345,6 +345,11 @@ export default function AdminUsers() {
     } finally {
       setQuickResetting(false);
     }
+  };
+
+  const closeQuickReset = () => {
+    setQuickResetTarget(null);
+    setQuickResetResult(null);
   };
 
   const copyToClipboard = (text) => {
@@ -495,7 +500,7 @@ export default function AdminUsers() {
                     <Tooltip title="Modifier / Gérer les bulletins">
                       <IconButton size="small" onClick={() => openEdit(u)}><EditOutlined fontSize="small" /></IconButton>
                     </Tooltip>
-                    <Tooltip title="Réinitialiser au mot de passe par défaut (Crous2025)">
+                    <Tooltip title="Réinitialiser le mot de passe (PIN aléatoire)">
                       <IconButton size="small" color="info" onClick={() => setQuickResetTarget(u)}><RestartAltOutlined fontSize="small" /></IconButton>
                     </Tooltip>
                     <Tooltip title="Réinitialiser le mot de passe (personnalisé)">
@@ -724,7 +729,7 @@ export default function AdminUsers() {
                 label="Mot de passe personnalisé (optionnel)"
                 value={resetPin}
                 onChange={e => setResetPin(e.target.value)}
-                helperText="Laissez vide pour utiliser le mot de passe par défaut : Crous2025"
+                helperText="Laissez vide pour générer un PIN aléatoire"
                 inputProps={{ maxLength: 10 }}
                 fullWidth
               />
@@ -745,19 +750,39 @@ export default function AdminUsers() {
       </Dialog>
 
       {/* ── Quick Reset to Default Dialog ── */}
-      <Dialog open={Boolean(quickResetTarget)} onClose={() => setQuickResetTarget(null)} maxWidth="xs" fullWidth>
-        <DialogTitle>Réinitialiser au mot de passe par défaut</DialogTitle>
+      <Dialog open={Boolean(quickResetTarget)} onClose={closeQuickReset} maxWidth="xs" fullWidth>
+        <DialogTitle>Réinitialiser le mot de passe</DialogTitle>
         <DialogContent>
-          <Typography>
-            Réinitialiser le mot de passe de <strong>{quickResetTarget?.prenom} {quickResetTarget?.nom}</strong> au mot de passe par défaut{' '}
-            <strong>Crous2025</strong> ? Le compte repassera en mode « première connexion ».
-          </Typography>
+          {quickResetResult ? (
+            <Box>
+              <Alert severity="success" sx={{ mb: 2 }}>Compte remis en mode « première connexion ».</Alert>
+              <Typography variant="body2" gutterBottom>
+                Communiquez ce PIN à l'employé. Il devra définir un nouveau mot de passe lors de sa prochaine connexion.
+              </Typography>
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="h5" fontWeight={700} letterSpacing={4}>{quickResetResult}</Typography>
+                <Tooltip title="Copier le PIN">
+                  <IconButton onClick={() => copyToClipboard(quickResetResult)}><ContentCopyOutlined /></IconButton>
+                </Tooltip>
+              </Box>
+            </Box>
+          ) : (
+            <Typography>
+              Générer un nouveau PIN aléatoire pour <strong>{quickResetTarget?.prenom} {quickResetTarget?.nom}</strong> ?
+              Le compte repassera en mode « première connexion ».
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setQuickResetTarget(null)}>Annuler</Button>
-          <Button variant="contained" color="info" onClick={handleQuickReset} disabled={quickResetting}>
-            {quickResetting ? <CircularProgress size={20} /> : 'Réinitialiser'}
-          </Button>
+          {quickResetResult
+            ? <Button variant="contained" onClick={closeQuickReset}>Fermer</Button>
+            : <>
+              <Button onClick={closeQuickReset}>Annuler</Button>
+              <Button variant="contained" color="info" onClick={handleQuickReset} disabled={quickResetting}>
+                {quickResetting ? <CircularProgress size={20} /> : 'Réinitialiser'}
+              </Button>
+            </>
+          }
         </DialogActions>
       </Dialog>
 
@@ -772,13 +797,13 @@ export default function AdminUsers() {
           </Typography>
           <Paper sx={{ bgcolor: 'grey.900', p: 2, borderRadius: 2, fontFamily: 'monospace', fontSize: 11, color: '#4caf50', overflow: 'auto', mb: 2 }}>
             {'matricule,nom,prenom,service,email,is_admin,pin,mois,annee,salaire_brut,salaire_net,fichier_pdf\n'}
-            {'EMP004,Diop,Aminata,Finance,aminata@ex.sn,0,Crous2025,Janvier,2025,480000,390000,EMP004_2025_01.pdf'}
+            {'EMP004,Diop,Aminata,Finance,aminata@ex.sn,0,,Janvier,2025,480000,390000,EMP004_2025_01.pdf'}
           </Paper>
           <Box sx={{ bgcolor: 'info.50', border: '1px solid', borderColor: 'info.200', borderRadius: 2, p: 1.5, mb: 2 }}>
             <Typography variant="caption" color="info.dark" component="div" sx={{ lineHeight: 1.8 }}>
               <strong>service</strong> — Informatique, Ressources Humaines, Finance, Direction, Logistique…<br />
               <strong>is_admin</strong> — 0 ou 1 (laisser vide = 0)<br />
-              <strong>pin</strong> — mot de passe première connexion (laisser vide = Crous2025)<br />
+              <strong>pin</strong> — mot de passe première connexion (laisser vide = PIN aléatoire généré)<br />
               <strong>fichier_pdf</strong> — nom du fichier PDF (laisser vide = généré automatiquement)
             </Typography>
           </Box>

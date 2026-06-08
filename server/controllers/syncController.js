@@ -3,9 +3,10 @@ const path = require('path');
 const csv = require('csv-parser');
 const AdmZip = require('adm-zip');
 const { v4: uuidv4 } = require('uuid');
+const { PDFDocument } = require('pdf-lib');
+const pdfParse = require('pdf-parse');
 const { pool } = require('../database/db');
-
-const DEFAULT_PIN = 'Crous2025';
+const { generatePin } = require('../utils/generatePin');
 
 function parseRow(row, errors) {
   const {
@@ -24,7 +25,7 @@ function parseRow(row, errors) {
     service: service?.trim() || '',
     email: email?.trim() || null,
     is_admin: ['1', 'true', 'oui', 'yes'].includes((is_admin || '').trim().toLowerCase()) ? 1 : 0,
-    pin: pin?.trim() || DEFAULT_PIN,
+    pin: pin?.trim() || generatePin(),
     mois: mois.trim(),
     annee: parseInt(annee),
     salaire_brut: parseFloat(salaire_brut),
@@ -225,4 +226,98 @@ exports.syncZIP = async (req, res, next) => {
     try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch (_) {}
     try { fs.unlinkSync(zipPath); } catch (_) {}
   }
+};
+
+// ── Bulletin PDF multi-pages → split par employé ─────────────────────────────
+
+const MONTH_MAP = {
+  '01': 'Janvier', '02': 'Février', '03': 'Mars', '04': 'Avril',
+  '05': 'Mai', '06': 'Juin', '07': 'Juillet', '08': 'Août',
+  '09': 'Septembre', '10': 'Octobre', '11': 'Novembre', '12': 'Décembre',
+};
+
+function parseBulletinPage(text) {
+  const mMat = text.match(/Matricule\s+(\d+)/);
+  const mPer = text.match(/P.riode du (\d{2})\/(\d{2})\/(\d{2})/);
+  if (!mMat || !mPer) return null;
+  const matricule = mMat[1].padStart(4, '0');
+  const monthNum  = mPer[2].padStart(2, '0');
+  const year      = 2000 + parseInt(mPer[3]);
+  const filename  = `${matricule}_${year}_${monthNum}.pdf`;
+  const mois      = MONTH_MAP[monthNum] || monthNum;
+  return { matricule, monthNum, year, mois, filename };
+}
+
+exports.syncBulletinPDF = async (req, res, next) => {
+  if (!req.file) return res.status(400).json({ message: 'Aucun fichier PDF fourni' });
+
+  const pdfDir = path.resolve(process.env.PDF_DIR || './pdf');
+  fs.mkdirSync(pdfDir, { recursive: true });
+
+  const fileBuffer = fs.readFileSync(req.file.path);
+  let srcDoc;
+  try {
+    srcDoc = await PDFDocument.load(fileBuffer);
+  } catch (e) {
+    return res.status(400).json({ message: 'Fichier PDF invalide ou corrompu' });
+  }
+
+  const totalPages = srcDoc.getPageCount();
+  const saved = [];
+  const skipped = [];
+  const errors = [];
+
+  for (let i = 0; i < totalPages; i++) {
+    let pageText = '';
+    try {
+      const singleDoc = await PDFDocument.create();
+      const [copied] = await singleDoc.copyPages(srcDoc, [i]);
+      singleDoc.addPage(copied);
+      const singleBuf = Buffer.from(await singleDoc.save());
+
+      // Extract text for header parsing
+      const parsed = await pdfParse(singleBuf);
+      pageText = parsed.text || '';
+    } catch (e) {
+      errors.push(`Page ${i + 1}: erreur extraction — ${e.message}`);
+      continue;
+    }
+
+    const info = parseBulletinPage(pageText);
+    if (!info) {
+      errors.push(`Page ${i + 1}: en-tête non reconnu (matricule/période introuvable)`);
+      continue;
+    }
+
+    // Extract and save the single-page PDF
+    try {
+      const out = await PDFDocument.create();
+      const [copiedPage] = await out.copyPages(srcDoc, [i]);
+      out.addPage(copiedPage);
+      const outBuf = Buffer.from(await out.save());
+      fs.writeFileSync(path.join(pdfDir, info.filename), outBuf);
+    } catch (e) {
+      errors.push(`Page ${i + 1} (${info.matricule}): erreur sauvegarde — ${e.message}`);
+      continue;
+    }
+
+    // Stamp fichier_pdf in the DB if a matching payslip exists
+    await pool.query(
+      `UPDATE payslips SET fichier_pdf=$1, synced_at=NOW()
+       WHERE matricule=$2 AND mois=$3 AND annee=$4`,
+      [info.filename, info.matricule, info.mois, info.year]
+    );
+
+    saved.push(info.filename);
+  }
+
+  try { fs.unlinkSync(req.file.path); } catch (_) {}
+
+  res.json({
+    message: `${saved.length} bulletin(s) extrait(s) sur ${totalPages} page(s)`,
+    total: totalPages,
+    saved: saved.length,
+    skipped: skipped.length,
+    errors,
+  });
 };
