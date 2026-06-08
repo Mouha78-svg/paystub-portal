@@ -104,11 +104,12 @@ export default function VerifyEmail() {
               <Box sx={{ textAlign: "center" }}>
                 <MarkEmailReadOutlined sx={{ fontSize: 56, color: "success.main", mb: 2 }} />
                 <Typography variant="h6" sx={{ mb: 1 }}>
-                  Compte créé avec succès !
+                  Compte activé avec succès !
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                  Bonjour <strong>{prenom}</strong>, notez votre mot de passe
-                  temporaire ci-dessous avant de vous connecter.
+                  Bonjour <strong>{prenom}</strong>, notez votre code PIN
+                  temporaire ci-dessous. Vous devrez le saisir lors de votre
+                  première connexion.
                 </Typography>
                 <Alert severity="warning" sx={{ mb: 3, textAlign: "left" }}>
                   <strong>Matricule :</strong> {success.matricule}

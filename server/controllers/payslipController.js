@@ -93,6 +93,7 @@ exports.download = async (req, res, next) => {
     const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
 
     if (fs.existsSync(filePath)) {
+      await pool.query('UPDATE payslips SET downloaded_at=NOW() WHERE id=$1', [payslip.id]);
       return res.download(filePath, payslip.fichier_pdf);
     }
 
@@ -116,6 +117,7 @@ exports.download = async (req, res, next) => {
       await browser.close();
     }
 
+    await pool.query('UPDATE payslips SET downloaded_at=NOW() WHERE id=$1', [payslip.id]);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${payslip.fichier_pdf}"`);
     return res.end(pdfBuffer);

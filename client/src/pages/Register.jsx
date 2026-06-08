@@ -24,23 +24,32 @@ import {
   PersonOutlined,
   EmailOutlined,
   BusinessOutlined,
-  WcOutlined,
+  InfoOutlined,
 } from "@mui/icons-material";
 
 const SERVICES = [
-  "Administration",
+  "AGENCE CPTBLE PART",
+  "CELLULE ETUDES SUIVI ET PAVE",
+  "Cellule Comm et Dialog Social",
+  "Cellule de Passation Marchés",
+  "Comptabilite des Matiéres",
+  "DIRECTION",
+  "DIV ANIMATION CULT &SPORTS",
+  "DIV DES RESSOURCES HUMAINES",
+  "DIVISION ENTRETIEN ET CONSTRUC",
+  "DIVISION FINANCIERE",
+  "DIVISION HEBERGEMENT",
+  "DIVISION TRANSPORT",
+  "Division SécuritéEnvironnement",
   "Finance",
-  "Hébergement",
   "Informatique",
-  "Restauration",
-  "Ressources Humaines",
-  "Scolarité",
-  "Autre",
-];
-
-const GENRES = [
-  { value: "M", label: "Masculin" },
-  { value: "F", label: "Féminin" },
+  "SCE CONTRO INT ET GEST QUALITE",
+  "SERVICE ADMINISTRATIF",
+  "SERVICE DES RESTAURANTS UNIVER",
+  "SERVICE INFORMATIQUE",
+  "SERVICE MEDICO-SOCIA ETUDIANTS",
+  "SERVICE MEDICO-SOCIAL",
+  "Service Hyg Salub et Cont Tick",
 ];
 
 export default function Register() {
@@ -64,7 +73,6 @@ export default function Register() {
         prenom: data.prenom.trim(),
         email: data.email.trim().toLowerCase(),
         service: data.service,
-        genre: data.genre,
       });
       navigate("/verify-email", {
         state: {
@@ -125,11 +133,17 @@ export default function Register() {
         <Card>
           <CardContent sx={{ p: 4 }}>
             <Typography variant="h6" sx={{ mb: 0.5 }}>
-              Créer un compte
+              Activer mon compte
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Remplissez le formulaire pour vous inscrire
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Saisissez vos informations exactement telles qu'elles figurent dans
+              les registres RH.
             </Typography>
+
+            <Alert severity="info" icon={<InfoOutlined />} sx={{ mb: 3, fontSize: 13 }}>
+              Votre matricule, nom, prénom et service doivent correspondre à votre
+              dossier. En cas de doute, contactez les Ressources Humaines.
+            </Alert>
 
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
@@ -186,11 +200,41 @@ export default function Register() {
                 }}
               />
 
+              <FormControl fullWidth error={!!errors.service} sx={{ mb: 2 }}>
+                <InputLabel>Service / Département</InputLabel>
+                <Controller
+                  name="service"
+                  control={control}
+                  rules={{ required: "Service requis" }}
+                  defaultValue=""
+                  render={({ field }) => (
+                    <Select
+                      {...field}
+                      label="Service / Département"
+                      startAdornment={
+                        <InputAdornment position="start">
+                          <BusinessOutlined sx={{ color: "text.secondary" }} />
+                        </InputAdornment>
+                      }
+                    >
+                      {SERVICES.map((s) => (
+                        <MenuItem key={s} value={s}>
+                          {s}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  )}
+                />
+                {errors.service && (
+                  <FormHelperText>{errors.service.message}</FormHelperText>
+                )}
+              </FormControl>
+
               <TextField
                 fullWidth
                 label="Adresse email"
                 type="email"
-                sx={{ mb: 2 }}
+                sx={{ mb: 3 }}
                 {...register("email", {
                   required: "Email requis",
                   pattern: {
@@ -209,69 +253,6 @@ export default function Register() {
                 }}
               />
 
-              {/* Row: service + genre */}
-              <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-                <FormControl fullWidth error={!!errors.service}>
-                  <InputLabel>Service / Département</InputLabel>
-                  <Controller
-                    name="service"
-                    control={control}
-                    rules={{ required: "Service requis" }}
-                    defaultValue=""
-                    render={({ field }) => (
-                      <Select
-                        {...field}
-                        label="Service / Département"
-                        startAdornment={
-                          <InputAdornment position="start">
-                            <BusinessOutlined sx={{ color: "text.secondary" }} />
-                          </InputAdornment>
-                        }
-                      >
-                        {SERVICES.map((s) => (
-                          <MenuItem key={s} value={s}>
-                            {s}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    )}
-                  />
-                  {errors.service && (
-                    <FormHelperText>{errors.service.message}</FormHelperText>
-                  )}
-                </FormControl>
-
-                <FormControl fullWidth error={!!errors.genre}>
-                  <InputLabel>Genre</InputLabel>
-                  <Controller
-                    name="genre"
-                    control={control}
-                    rules={{ required: "Genre requis" }}
-                    defaultValue=""
-                    render={({ field }) => (
-                      <Select
-                        {...field}
-                        label="Genre"
-                        startAdornment={
-                          <InputAdornment position="start">
-                            <WcOutlined sx={{ color: "text.secondary" }} />
-                          </InputAdornment>
-                        }
-                      >
-                        {GENRES.map((g) => (
-                          <MenuItem key={g.value} value={g.value}>
-                            {g.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    )}
-                  />
-                  {errors.genre && (
-                    <FormHelperText>{errors.genre.message}</FormHelperText>
-                  )}
-                </FormControl>
-              </Box>
-
               <Button
                 type="submit"
                 variant="contained"
@@ -282,7 +263,7 @@ export default function Register() {
                 {loading ? (
                   <CircularProgress size={22} color="inherit" />
                 ) : (
-                  "S'inscrire"
+                  "Vérifier et activer"
                 )}
               </Button>
             </Box>
