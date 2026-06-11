@@ -413,14 +413,9 @@ export default function AdminUsers() {
           <Typography variant="h5">Gestion des utilisateurs</Typography>
           <Typography color="text.secondary">Ajouter, modifier ou supprimer des comptes employés</Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" startIcon={<UploadFileOutlined />} onClick={openCsvDialog}>
-            Importer CSV
-          </Button>
-          <Button variant="contained" startIcon={<PersonAddOutlined />} onClick={openCreate}>
-            Nouvel employé
-          </Button>
-        </Box>
+        <Button variant="contained" startIcon={<PersonAddOutlined />} onClick={openCreate}>
+          Nouvel employé
+        </Button>
       </Box>
 
       <TextField

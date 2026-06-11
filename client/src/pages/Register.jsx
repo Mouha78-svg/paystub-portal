@@ -25,6 +25,7 @@ import {
   EmailOutlined,
   BusinessOutlined,
   InfoOutlined,
+  WcOutlined,
 } from "@mui/icons-material";
 
 const SERVICES = [
@@ -73,6 +74,7 @@ export default function Register() {
         prenom: data.prenom.trim(),
         email: data.email.trim().toLowerCase(),
         service: data.service,
+        genre: data.genre,
       });
       navigate("/verify-email", {
         state: {
@@ -227,6 +229,33 @@ export default function Register() {
                 />
                 {errors.service && (
                   <FormHelperText>{errors.service.message}</FormHelperText>
+                )}
+              </FormControl>
+
+              <FormControl fullWidth error={!!errors.genre} sx={{ mb: 2 }}>
+                <InputLabel>Genre</InputLabel>
+                <Controller
+                  name="genre"
+                  control={control}
+                  rules={{ required: "Genre requis" }}
+                  defaultValue=""
+                  render={({ field }) => (
+                    <Select
+                      {...field}
+                      label="Genre"
+                      startAdornment={
+                        <InputAdornment position="start">
+                          <WcOutlined sx={{ color: "text.secondary" }} />
+                        </InputAdornment>
+                      }
+                    >
+                      <MenuItem value="M">Masculin</MenuItem>
+                      <MenuItem value="F">Féminin</MenuItem>
+                    </Select>
+                  )}
+                />
+                {errors.genre && (
+                  <FormHelperText>{errors.genre.message}</FormHelperText>
                 )}
               </FormControl>
 

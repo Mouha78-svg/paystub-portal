@@ -10,10 +10,13 @@ const normalize = s => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 exports.register = async (req, res, next) => {
   try {
-    const { matricule, nom, prenom, email, service } = req.body;
+    const { matricule, nom, prenom, email, service, genre } = req.body;
 
-    if (!matricule || !nom || !prenom || !email || !service)
+    if (!matricule || !nom || !prenom || !email || !service || !genre)
       return res.status(400).json({ message: 'Tous les champs sont requis' });
+
+    if (!['M', 'F'].includes(genre))
+      return res.status(400).json({ message: 'Genre invalide' });
 
     const upper = matricule.toUpperCase();
 
@@ -42,6 +45,9 @@ exports.register = async (req, res, next) => {
     if (dbService && dbService !== 'non défini' && normalize(service) !== dbService)
       return res.status(400).json({ message: 'Le service saisi ne correspond pas à nos enregistrements.' });
 
+    if (employee.genre && employee.genre !== genre)
+      return res.status(400).json({ message: 'Le genre saisi ne correspond pas à nos enregistrements.' });
+
     // Email must not already be claimed by a different account
     const { rows: emailConflict } = await pool.query(
       'SELECT matricule FROM employees WHERE email=$1 AND matricule!=$2',
@@ -58,7 +64,7 @@ exports.register = async (req, res, next) => {
        VALUES ($1, $2, $3, $4, $5, $6, '', $7, $8)
        ON CONFLICT (matricule) DO UPDATE SET
          email=$5, verification_code=$7, expires_at=$8, created_at=NOW()`,
-      [upper, employee.nom, employee.prenom, employee.service, email.toLowerCase().trim(), employee.genre || 'M', code, expiresAt]
+      [upper, employee.nom, employee.prenom, employee.service, email.toLowerCase().trim(), genre, code, expiresAt]
     );
 
     try {
