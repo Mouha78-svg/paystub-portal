@@ -11,26 +11,35 @@ const { generatePin } = require('../utils/generatePin');
 function parseRow(row, errors) {
   const {
     matricule, nom, prenom, service, email, is_admin, pin,
-    mois, annee, salaire_brut, salaire_net, fichier_pdf,
+    mois, annee, numero, salaire_brut, salaire_net, fichier_pdf,
   } = row;
 
   if (!matricule || !mois || !annee || !salaire_brut || !salaire_net) {
     errors.push(`Ligne ignorée (champs manquants): ${JSON.stringify(row)}`);
     return null;
   }
+  const num = parseInt(numero) || 1;
+  if (num < 1 || num > 2) {
+    errors.push(`Ligne ignorée (numero invalide, doit être 1 ou 2): ${JSON.stringify(row)}`);
+    return null;
+  }
+  const mat = matricule.trim().toUpperCase();
+  const ann = parseInt(annee);
+  const moisTrim = mois.trim();
   return {
-    matricule: matricule.trim().toUpperCase(),
+    matricule: mat,
     nom: nom?.trim() || '',
     prenom: prenom?.trim() || '',
     service: service?.trim() || '',
     email: email?.trim() || null,
     is_admin: ['1', 'true', 'oui', 'yes'].includes((is_admin || '').trim().toLowerCase()) ? 1 : 0,
     pin: pin?.trim() || generatePin(),
-    mois: mois.trim(),
-    annee: parseInt(annee),
+    mois: moisTrim,
+    annee: ann,
+    numero: num,
     salaire_brut: parseFloat(salaire_brut),
     salaire_net: parseFloat(salaire_net),
-    fichier_pdf: fichier_pdf?.trim() || `${matricule.trim().toUpperCase()}_${annee}_${mois.trim()}.pdf`,
+    fichier_pdf: fichier_pdf?.trim() || `${mat}_${ann}_${moisTrim}_${num}.pdf`,
   };
 }
 
@@ -52,13 +61,13 @@ async function upsertRows(results, client) {
       );
     }
     await client.query(
-      `INSERT INTO payslips (matricule, nom, prenom, mois, annee, salaire_brut, salaire_net, fichier_pdf, synced_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-       ON CONFLICT(matricule, mois, annee) DO UPDATE SET
+      `INSERT INTO payslips (matricule, nom, prenom, mois, annee, numero, salaire_brut, salaire_net, fichier_pdf, synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+       ON CONFLICT(matricule, mois, annee, numero) DO UPDATE SET
          nom=EXCLUDED.nom, prenom=EXCLUDED.prenom,
          salaire_brut=EXCLUDED.salaire_brut, salaire_net=EXCLUDED.salaire_net,
          fichier_pdf=EXCLUDED.fichier_pdf, synced_at=NOW()`,
-      [r.matricule, r.nom, r.prenom, r.mois, r.annee, r.salaire_brut, r.salaire_net, r.fichier_pdf]
+      [r.matricule, r.nom, r.prenom, r.mois, r.annee, r.numero, r.salaire_brut, r.salaire_net, r.fichier_pdf]
     );
     count++;
   }
@@ -237,8 +246,8 @@ const MONTH_MAP = {
 };
 
 function parseBulletinPage(text) {
-  const mMat = text.match(/Matricule\s+(\d+)/);
-  const mPer = text.match(/P.riode du (\d{2})\/(\d{2})\/(\d{2})/);
+  const mMat = text.match(/Matricule\s*(\d+)/);
+  const mPer = text.match(/P.riode du\s*(\d{2})\/(\d{2})\/(\d{2})/);
   if (!mMat || !mPer) return null;
   const matricule = mMat[1].padStart(4, '0');
   const monthNum  = mPer[2].padStart(2, '0');
@@ -266,6 +275,8 @@ exports.syncBulletinPDF = async (req, res, next) => {
   const saved = [];
   const skipped = [];
   const errors = [];
+  // Track how many bulletins we've seen per (matricule, year, month) to assign numero
+  const seenPages = new Map();
 
   for (let i = 0; i < totalPages; i++) {
     let pageText = '';
@@ -289,13 +300,24 @@ exports.syncBulletinPDF = async (req, res, next) => {
       continue;
     }
 
+    // Assign numero (1 for first occurrence, 2 for second, reject beyond that)
+    const pageKey = `${info.matricule}_${info.year}_${info.monthNum}`;
+    const numero = (seenPages.get(pageKey) || 0) + 1;
+    if (numero > 2) {
+      errors.push(`Page ${i + 1}: plus de 2 bulletins pour ${info.matricule} ${info.mois} ${info.year}, ignoré`);
+      continue;
+    }
+    seenPages.set(pageKey, numero);
+
+    const filename = `${info.matricule}_${info.year}_${info.monthNum}_${numero}.pdf`;
+
     // Extract and save the single-page PDF
     try {
       const out = await PDFDocument.create();
       const [copiedPage] = await out.copyPages(srcDoc, [i]);
       out.addPage(copiedPage);
       const outBuf = Buffer.from(await out.save());
-      fs.writeFileSync(path.join(pdfDir, info.filename), outBuf);
+      fs.writeFileSync(path.join(pdfDir, filename), outBuf);
     } catch (e) {
       errors.push(`Page ${i + 1} (${info.matricule}): erreur sauvegarde — ${e.message}`);
       continue;
@@ -304,11 +326,11 @@ exports.syncBulletinPDF = async (req, res, next) => {
     // Stamp fichier_pdf in the DB if a matching payslip exists
     await pool.query(
       `UPDATE payslips SET fichier_pdf=$1, synced_at=NOW()
-       WHERE matricule=$2 AND mois=$3 AND annee=$4`,
-      [info.filename, info.matricule, info.mois, info.year]
+       WHERE matricule=$2 AND mois=$3 AND annee=$4 AND numero=$5`,
+      [filename, info.matricule, info.mois, info.year, numero]
     );
 
-    saved.push(info.filename);
+    saved.push(filename);
   }
 
   try { fs.unlinkSync(req.file.path); } catch (_) {}

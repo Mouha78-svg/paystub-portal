@@ -90,11 +90,13 @@ exports.download = async (req, res, next) => {
     if (!payslip) return res.status(404).json({ message: 'Bulletin introuvable ou accès refusé' });
 
     const pdfDir = process.env.PDF_DIR || './pdf';
-    const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
 
-    if (fs.existsSync(filePath)) {
-      await pool.query('UPDATE payslips SET downloaded_at=NOW() WHERE id=$1', [payslip.id]);
-      return res.download(filePath, payslip.fichier_pdf);
+    if (payslip.fichier_pdf) {
+      const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
+      if (fs.existsSync(filePath)) {
+        await pool.query('UPDATE payslips SET downloaded_at=NOW() WHERE id=$1', [payslip.id]);
+        return res.download(filePath, payslip.fichier_pdf);
+      }
     }
 
     const { rows: empRows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [payslip.matricule]);
@@ -117,9 +119,12 @@ exports.download = async (req, res, next) => {
       await browser.close();
     }
 
+    const moisNum = MOIS_NUM[payslip.mois] || '00';
+    const fallbackName = payslip.fichier_pdf ||
+      `${payslip.matricule}_${payslip.annee}_${moisNum}_${payslip.numero || 1}.pdf`;
     await pool.query('UPDATE payslips SET downloaded_at=NOW() WHERE id=$1', [payslip.id]);
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${payslip.fichier_pdf}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${fallbackName}"`);
     return res.end(pdfBuffer);
   } catch (err) {
     console.error('PDF generation error:', err);

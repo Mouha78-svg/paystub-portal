@@ -131,11 +131,17 @@ exports.getPayslips = async (req, res, next) => {
 exports.addPayslip = async (req, res, next) => {
   try {
     const { matricule } = req.params;
-    const { mois, annee, salaire_brut, salaire_net } = req.body;
+    const { mois, annee, numero, salaire_brut, salaire_net } = req.body;
 
     if (!mois || !annee || !salaire_brut || !salaire_net) {
       if (req.file) fs.unlinkSync(req.file.path);
       return res.status(400).json({ message: 'Mois, année, salaire brut et salaire net sont requis' });
+    }
+
+    const num = parseInt(numero) || 1;
+    if (num < 1 || num > 2) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: 'Le numéro de bulletin doit être 1 ou 2' });
     }
 
     const mat = matricule.toUpperCase();
@@ -146,7 +152,7 @@ exports.addPayslip = async (req, res, next) => {
       return res.status(404).json({ message: 'Employé introuvable' });
     }
 
-    const fichier_pdf = `${mat}_${annee}_${mois}.pdf`;
+    const fichier_pdf = `${mat}_${annee}_${mois}_${num}.pdf`;
     if (req.file) {
       const dir = PDF_DIR();
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -154,12 +160,12 @@ exports.addPayslip = async (req, res, next) => {
     }
 
     await pool.query(
-      `INSERT INTO payslips (matricule, nom, prenom, mois, annee, salaire_brut, salaire_net, fichier_pdf, synced_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-       ON CONFLICT(matricule, mois, annee) DO UPDATE SET
+      `INSERT INTO payslips (matricule, nom, prenom, mois, annee, numero, salaire_brut, salaire_net, fichier_pdf, synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+       ON CONFLICT(matricule, mois, annee, numero) DO UPDATE SET
          salaire_brut=EXCLUDED.salaire_brut, salaire_net=EXCLUDED.salaire_net,
          fichier_pdf=EXCLUDED.fichier_pdf, synced_at=NOW()`,
-      [mat, emp.nom, emp.prenom, mois, parseInt(annee), parseFloat(salaire_brut), parseFloat(salaire_net), fichier_pdf]
+      [mat, emp.nom, emp.prenom, mois, parseInt(annee), num, parseFloat(salaire_brut), parseFloat(salaire_net), fichier_pdf]
     );
 
     res.status(201).json({ message: 'Bulletin enregistré', fichier_pdf });

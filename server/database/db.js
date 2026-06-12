@@ -36,13 +36,42 @@ async function initDB() {
       prenom TEXT NOT NULL,
       mois TEXT NOT NULL,
       annee INTEGER NOT NULL,
+      numero INTEGER NOT NULL DEFAULT 1,
       salaire_brut DOUBLE PRECISION NOT NULL,
       salaire_net DOUBLE PRECISION NOT NULL,
       fichier_pdf TEXT,
       synced_at TIMESTAMPTZ DEFAULT NOW(),
-      UNIQUE(matricule, mois, annee),
+      UNIQUE(matricule, mois, annee, numero),
+      CHECK (numero BETWEEN 1 AND 2),
       FOREIGN KEY (matricule) REFERENCES employees(matricule)
     )
+  `);
+
+  // Migrate existing tables: add numero, swap unique constraint, add check constraint
+  await pool.query(`ALTER TABLE payslips ADD COLUMN IF NOT EXISTS numero INTEGER NOT NULL DEFAULT 1`);
+  await pool.query(`
+    DO $$ BEGIN
+      IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'payslips_matricule_mois_annee_key'
+      ) THEN
+        ALTER TABLE payslips DROP CONSTRAINT payslips_matricule_mois_annee_key;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'payslips_matricule_mois_annee_numero_key'
+      ) THEN
+        ALTER TABLE payslips ADD CONSTRAINT payslips_matricule_mois_annee_numero_key
+          UNIQUE (matricule, mois, annee, numero);
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'payslips_numero_check'
+      ) THEN
+        ALTER TABLE payslips ADD CONSTRAINT payslips_numero_check
+          CHECK (numero BETWEEN 1 AND 2);
+      END IF;
+    END $$
   `);
 
   await pool.query(`
