@@ -246,10 +246,10 @@ const MONTH_MAP = {
 };
 
 function parseBulletinPage(text) {
-  const mMat = text.match(/Matricule\s*(\d+)/);
-  const mPer = text.match(/P.riode du\s*(\d{2})\/(\d{2})\/(\d{2})/);
+  const mMat = text.match(/Matricule\s+(\S+)/);
+  const mPer = text.match(/P.riode\s+du\s+(\d{2})\/(\d{2})\/(\d{2})/);
   if (!mMat || !mPer) return null;
-  const matricule = mMat[1].padStart(4, '0');
+  const matricule = mMat[1].trim().toUpperCase();
   const monthNum  = mPer[2].padStart(2, '0');
   const year      = 2000 + parseInt(mPer[3]);
   const filename  = `${matricule}_${year}_${monthNum}.pdf`;
