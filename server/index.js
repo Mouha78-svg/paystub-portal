@@ -10,6 +10,9 @@ const { initDB } = require('./database/db');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust Railway/proxy X-Forwarded-For headers (required for express-rate-limit)
+app.set('trust proxy', 1);
+
 // Rate limiter
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, message: { message: 'Trop de requêtes' } });
 

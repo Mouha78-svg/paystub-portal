@@ -345,11 +345,14 @@ exports.syncBulletinPDF = async (req, res, next) => {
       continue;
     }
 
-    // Stamp fichier_pdf in the DB if a matching payslip exists
+    // Upsert: create payslip record if missing, otherwise just update fichier_pdf
     await pool.query(
-      `UPDATE payslips SET fichier_pdf=$1, synced_at=NOW()
-       WHERE matricule=$2 AND mois=$3 AND annee=$4 AND numero=$5`,
-      [filename, info.matricule, info.mois, info.year, numero]
+      `INSERT INTO payslips (matricule, nom, prenom, mois, annee, numero, salaire_brut, salaire_net, fichier_pdf, synced_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, NOW())
+       ON CONFLICT(matricule, mois, annee, numero) DO UPDATE SET
+         fichier_pdf = EXCLUDED.fichier_pdf,
+         synced_at = NOW()`,
+      [info.matricule, empInfo.nom, empInfo.prenom, info.mois, info.year, numero, filename]
     );
 
     saved.push(filename);
