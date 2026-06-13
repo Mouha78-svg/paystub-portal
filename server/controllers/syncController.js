@@ -3,7 +3,7 @@ const path = require('path');
 const csv = require('csv-parser');
 const AdmZip = require('adm-zip');
 const { v4: uuidv4 } = require('uuid');
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const pdfParse = require('pdf-parse');
 const { pool } = require('../database/db');
 const { generatePin } = require('../utils/generatePin');
@@ -239,6 +239,18 @@ exports.syncZIP = async (req, res, next) => {
 
 // ── Bulletin PDF multi-pages → split par employé ─────────────────────────────
 
+async function stampPage(pdfDoc, emp, info) {
+  const page = pdfDoc.getPages()[0];
+  const { width } = page.getSize();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const label = emp
+    ? `${info.matricule} — ${emp.prenom} ${emp.nom} | ${info.mois} ${info.year}`
+    : `${info.matricule} | ${info.mois} ${info.year}`;
+
+  page.drawRectangle({ x: 0, y: 0, width, height: 18, color: rgb(0.88, 0.88, 0.88), opacity: 0.9 });
+  page.drawText(label, { x: 10, y: 4, size: 8, font, color: rgb(0.15, 0.15, 0.15) });
+}
+
 const MONTH_MAP = {
   '01': 'Janvier', '02': 'Février', '03': 'Mars', '04': 'Avril',
   '05': 'Mai', '06': 'Juin', '07': 'Juillet', '08': 'Août',
@@ -275,8 +287,8 @@ exports.syncBulletinPDF = async (req, res, next) => {
   const saved = [];
   const skipped = [];
   const errors = [];
-  // Track how many bulletins we've seen per (matricule, year, month) to assign numero
   const seenPages = new Map();
+  const empCache = new Map();
 
   for (let i = 0; i < totalPages; i++) {
     let pageText = '';
@@ -311,11 +323,21 @@ exports.syncBulletinPDF = async (req, res, next) => {
 
     const filename = `${info.matricule}_${info.year}_${info.monthNum}_${numero}.pdf`;
 
-    // Extract and save the single-page PDF
+    // Look up employee name for the stamp (cached per matricule)
+    if (!empCache.has(info.matricule)) {
+      const { rows } = await pool.query(
+        'SELECT nom, prenom FROM employees WHERE matricule=$1', [info.matricule]
+      );
+      empCache.set(info.matricule, rows[0] || null);
+    }
+    const emp = empCache.get(info.matricule);
+
+    // Extract, stamp, and save the single-page PDF
     try {
       const out = await PDFDocument.create();
       const [copiedPage] = await out.copyPages(srcDoc, [i]);
       out.addPage(copiedPage);
+      await stampPage(out, emp, { matricule: info.matricule, mois: info.mois, year: info.year });
       const outBuf = Buffer.from(await out.save());
       fs.writeFileSync(path.join(pdfDir, filename), outBuf);
     } catch (e) {
