@@ -104,6 +104,16 @@ async function initDB() {
 
   await pool.query(`ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS pin TEXT NOT NULL DEFAULT ''`);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id SERIAL PRIMARY KEY,
+      matricule TEXT NOT NULL REFERENCES employees(matricule) ON DELETE CASCADE,
+      message TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_payslips_matricule ON payslips(matricule)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_payslips_annee ON payslips(annee)`);
 

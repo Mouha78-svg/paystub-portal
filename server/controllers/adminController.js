@@ -112,6 +112,55 @@ exports.resetPassword = async (req, res, next) => {
   }
 };
 
+// ── Feedback management (admin) ──────────────────────────────────────────────
+
+exports.getAllUserFeedback = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT f.id, f.matricule, f.message, f.created_at,
+             e.nom, e.prenom, e.service
+      FROM feedback f
+      JOIN employees e ON e.matricule = f.matricule
+      WHERE f.created_by = f.matricule
+      ORDER BY f.created_at DESC
+    `);
+    res.json(rows);
+  } catch (err) { next(err); }
+};
+
+exports.getFeedback = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM feedback WHERE matricule=$1 ORDER BY created_at DESC',
+      [req.params.matricule.toUpperCase()]
+    );
+    res.json(rows);
+  } catch (err) { next(err); }
+};
+
+exports.addFeedback = async (req, res, next) => {
+  try {
+    const { message } = req.body;
+    if (!message?.trim()) return res.status(400).json({ message: 'Message requis' });
+    const { rows } = await pool.query(
+      `INSERT INTO feedback (matricule, message, created_by) VALUES ($1, $2, $3) RETURNING *`,
+      [req.params.matricule.toUpperCase(), message.trim(), req.user.matricule]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+};
+
+exports.deleteFeedback = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'DELETE FROM feedback WHERE id=$1 RETURNING id',
+      [parseInt(req.params.id)]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'Message introuvable' });
+    res.json({ message: 'Message supprimé' });
+  } catch (err) { next(err); }
+};
+
 // ── Payslip management (admin) ───────────────────────────────────────────────
 
 const PDF_DIR = () => path.resolve(process.env.PDF_DIR || './pdf');

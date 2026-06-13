@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Box, Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText,
@@ -9,7 +10,7 @@ import {
 import {
   DashboardOutlined, ReceiptLongOutlined, PersonOutlined,
   MenuOutlined, LogoutOutlined, SyncOutlined, ChevronLeft,
-  PeopleOutlined
+  PeopleOutlined, ChatBubbleOutlineOutlined
 } from '@mui/icons-material';
 
 const DRAWER_WIDTH = 250;
@@ -20,6 +21,7 @@ const BASE_NAV_ITEMS = [
   { label: 'Mon profil', icon: <PersonOutlined />, path: '/profile' },
   { label: 'Synchronisation', icon: <SyncOutlined />, path: '/sync', adminOnly: true },
   { label: 'Utilisateurs', icon: <PeopleOutlined />, path: '/admin/users', adminOnly: true },
+  { label: 'Messages employés', icon: <ChatBubbleOutlineOutlined />, path: '/admin/feedback', adminOnly: true },
 ];
 
 export default function Layout() {
@@ -32,6 +34,15 @@ export default function Layout() {
   const [anchorEl, setAnchorEl] = useState(null);
 
   const initials = user ? `${user.prenom[0]}${user.nom[0]}`.toUpperCase() : 'U';
+  const [complaintCount, setComplaintCount] = useState(null);
+  const [userCount, setUserCount] = useState(null);
+
+  useEffect(() => {
+    if (user?.is_admin) {
+      api.get('/admin/feedback').then(r => setComplaintCount(r.data.length)).catch(() => {});
+      api.get('/admin/users').then(r => setUserCount(r.data.length)).catch(() => {});
+    }
+  }, [user?.is_admin]);
 
   const handleLogout = async () => {
     await logout();
@@ -83,6 +94,20 @@ export default function Layout() {
                   fontSize: 14, fontWeight: active ? 600 : 400,
                   color: active ? '#fff' : 'rgba(255,255,255,0.7)'
                 }} />
+                {item.path === '/admin/users' && userCount !== null && (
+                  <Chip
+                    label={userCount}
+                    size="small"
+                    sx={{ height: 18, fontSize: 10, fontWeight: 700, bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', mr: 0.5 }}
+                  />
+                )}
+                {item.path === '/admin/feedback' && complaintCount > 0 && (
+                  <Chip
+                    label={complaintCount}
+                    size="small"
+                    sx={{ height: 18, fontSize: 10, fontWeight: 700, bgcolor: '#C68B2E', color: '#fff', mr: 0.5 }}
+                  />
+                )}
                 {active && <ChevronLeft sx={{ color: 'rgba(255,255,255,0.5)', transform: 'rotate(180deg)', fontSize: 18 }} />}
               </ListItemButton>
             </ListItem>

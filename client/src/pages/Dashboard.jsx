@@ -4,11 +4,14 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import {
   Box, Grid, Card, CardContent, Typography, Button, Chip,
-  Avatar, Skeleton, Alert, Divider
+  Avatar, Skeleton, Alert, Divider, TextField, IconButton,
+  CircularProgress, Tooltip
 } from '@mui/material';
 import {
   ReceiptLongOutlined, PersonOutlined, TrendingUpOutlined,
-  ArrowForwardOutlined, AccountBalanceOutlined, CalendarMonthOutlined
+  ArrowForwardOutlined, AccountBalanceOutlined, CalendarMonthOutlined,
+  ChatBubbleOutlineOutlined, SendOutlined, EditOutlined, DeleteOutlined,
+  CheckOutlined, CloseOutlined
 } from '@mui/icons-material';
 
 function StatCard({ icon, label, value, color, loading }) {
@@ -35,10 +38,79 @@ export default function Dashboard() {
   const [total, setTotal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [feedbackList, setFeedbackList] = useState([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [messageSaving, setMessageSaving] = useState(false);
+  const [messageError, setMessageError] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editingText, setEditingText] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const fetchFeedback = () => {
+    setFeedbackLoading(true);
+    api.get('/feedback').then(r => setFeedbackList(r.data)).catch(() => setFeedbackList([])).finally(() => setFeedbackLoading(false));
+  };
 
   useEffect(() => {
     api.get('/payslips?limit=3').then(r => { setPayslips(r.data.data || []); setTotal(r.data.total ?? null); }).catch(e => setError(e.response?.data?.message || 'Erreur')).finally(() => setLoading(false));
+    fetchFeedback();
   }, []);
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) return;
+    setMessageSaving(true);
+    setMessageError('');
+    try {
+      await api.post('/feedback', { message: newMessage });
+      setNewMessage('');
+      fetchFeedback();
+    } catch (e) {
+      setMessageError(e.response?.data?.message || 'Erreur lors de l\'envoi');
+    } finally {
+      setMessageSaving(false);
+    }
+  };
+
+  const startEdit = (f) => {
+    setEditingId(f.id);
+    setEditingText(f.message);
+    setMessageError('');
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingText('');
+  };
+
+  const handleEditSave = async (id) => {
+    if (!editingText.trim()) return;
+    setEditSaving(true);
+    setMessageError('');
+    try {
+      await api.put(`/feedback/${id}`, { message: editingText });
+      setEditingId(null);
+      fetchFeedback();
+    } catch (e) {
+      setMessageError(e.response?.data?.message || 'Erreur lors de la modification');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    setDeletingId(id);
+    setMessageError('');
+    try {
+      await api.delete(`/feedback/${id}`);
+      fetchFeedback();
+    } catch (e) {
+      setMessageError(e.response?.data?.message || 'Erreur lors de la suppression');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const fmt = n => new Intl.NumberFormat('fr-SN', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(n);
   const initials = user ? `${user.prenom[0]}${user.nom[0]}`.toUpperCase() : 'U';
@@ -140,6 +212,129 @@ export default function Dashboard() {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Messaging with administration */}
+      <Box sx={{ mt: 3 }}>
+        <Card>
+          <CardContent sx={{ p: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+              <ChatBubbleOutlineOutlined sx={{ color: 'primary.main' }} />
+              <Typography fontWeight={600}>Messages</Typography>
+            </Box>
+
+            {/* Conversation thread */}
+            {feedbackLoading ? (
+              [1, 2].map(i => <Skeleton key={i} height={56} sx={{ mb: 1, borderRadius: 2 }} />)
+            ) : feedbackList.length === 0 ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Aucun message pour l'instant. Vous pouvez contacter l'administration ci-dessous.
+              </Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
+                {feedbackList.map(f => {
+                  const fromUser = f.created_by === user?.matricule;
+                  const isEditing = editingId === f.id;
+                  return (
+                    <Box
+                      key={f.id}
+                      sx={{
+                        p: 2, borderRadius: 2, border: '1px solid',
+                        alignSelf: fromUser ? 'flex-end' : 'flex-start',
+                        maxWidth: '85%', width: isEditing ? '85%' : undefined,
+                        bgcolor: fromUser ? 'secondary.50' : 'primary.50',
+                        borderColor: fromUser ? 'secondary.200' : 'primary.100',
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                        <Typography variant="caption" fontWeight={600} color={fromUser ? 'secondary.dark' : 'primary.dark'}>
+                          {fromUser ? 'Vous' : 'Administration'}
+                        </Typography>
+                        {fromUser && !isEditing && (
+                          <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+                            <Tooltip title="Modifier">
+                              <IconButton size="small" onClick={() => startEdit(f)} sx={{ p: 0.3 }}>
+                                <EditOutlined sx={{ fontSize: 14, color: 'text.secondary' }} />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Supprimer">
+                              <IconButton size="small" onClick={() => handleDelete(f.id)} disabled={deletingId === f.id} sx={{ p: 0.3 }}>
+                                {deletingId === f.id
+                                  ? <CircularProgress size={12} />
+                                  : <DeleteOutlined sx={{ fontSize: 14, color: 'error.main' }} />}
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        )}
+                      </Box>
+
+                      {isEditing ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <TextField
+                            value={editingText}
+                            onChange={e => setEditingText(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEditSave(f.id); } if (e.key === 'Escape') cancelEdit(); }}
+                            size="small"
+                            fullWidth
+                            multiline
+                            autoFocus
+                            maxRows={6}
+                            inputProps={{ maxLength: 1000 }}
+                          />
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                            <Tooltip title="Annuler (Échap)">
+                              <IconButton size="small" onClick={cancelEdit}>
+                                <CloseOutlined sx={{ fontSize: 16 }} />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Enregistrer (Entrée)">
+                              <span>
+                                <IconButton size="small" color="primary" onClick={() => handleEditSave(f.id)} disabled={editSaving || !editingText.trim()}>
+                                  {editSaving ? <CircularProgress size={14} /> : <CheckOutlined sx={{ fontSize: 16 }} />}
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </Box>
+                        </Box>
+                      ) : (
+                        <Typography fontSize={14} sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{f.message}</Typography>
+                      )}
+
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                        {new Date(f.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            )}
+
+            {messageError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setMessageError('')}>{messageError}</Alert>}
+
+            {/* Send message form */}
+            <Divider sx={{ mb: 2 }} />
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+              <TextField
+                placeholder="Envoyer un message à l'administration…"
+                value={newMessage}
+                onChange={e => setNewMessage(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                size="small"
+                fullWidth
+                multiline
+                maxRows={4}
+                inputProps={{ maxLength: 1000 }}
+              />
+              <Tooltip title="Envoyer">
+                <span>
+                  <IconButton color="primary" onClick={handleSendMessage} disabled={messageSaving || !newMessage.trim()}>
+                    {messageSaving ? <CircularProgress size={20} /> : <SendOutlined />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
     </Box>
   );
 }

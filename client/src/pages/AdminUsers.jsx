@@ -12,7 +12,8 @@ import {
   AdminPanelSettingsOutlined, PersonOffOutlined, ContentCopyOutlined,
   CheckCircleOutlined, VisibilityOutlined, VisibilityOffOutlined, SearchOutlined,
   RestartAltOutlined, UploadFileOutlined, WarningAmberOutlined,
-  AddOutlined, PictureAsPdfOutlined, ReceiptLongOutlined
+  AddOutlined, PictureAsPdfOutlined, ReceiptLongOutlined,
+  ChatBubbleOutlineOutlined, SendOutlined
 } from '@mui/icons-material';
 
 const SERVICES = ['Informatique', 'Ressources Humaines', 'Finance', 'Direction', 'Logistique'];
@@ -111,6 +112,13 @@ export default function AdminUsers() {
   const [payslipSaving, setPayslipSaving] = useState(false);
   const [payslipDeleting, setPayslipDeleting] = useState(null);
 
+  // Feedback
+  const [feedback, setFeedback] = useState([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [newFeedback, setNewFeedback] = useState('');
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
+  const [feedbackDeleting, setFeedbackDeleting] = useState(null);
+
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -150,6 +158,44 @@ export default function AdminUsers() {
   useEffect(() => { fetchUsers(); }, []);
 
   // ── Payslip helpers ─────────────────────────────────────────────────────────
+
+  const fetchFeedback = async (matricule) => {
+    setFeedbackLoading(true);
+    try {
+      const { data } = await api.get(`/admin/users/${matricule}/feedback`);
+      setFeedback(data);
+    } catch {
+      setFeedback([]);
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
+  const handleAddFeedback = async () => {
+    if (!newFeedback.trim()) return;
+    setFeedbackSaving(true);
+    try {
+      await api.post(`/admin/users/${editTarget.matricule}/feedback`, { message: newFeedback });
+      setNewFeedback('');
+      fetchFeedback(editTarget.matricule);
+    } catch (e) {
+      setError(e.response?.data?.message || 'Erreur');
+    } finally {
+      setFeedbackSaving(false);
+    }
+  };
+
+  const handleDeleteFeedback = async (id) => {
+    setFeedbackDeleting(id);
+    try {
+      await api.delete(`/admin/feedback/${id}`);
+      fetchFeedback(editTarget.matricule);
+    } catch (e) {
+      setError(e.response?.data?.message || 'Erreur');
+    } finally {
+      setFeedbackDeleting(null);
+    }
+  };
 
   const fetchPayslips = async (matricule) => {
     setPayslipsLoading(true);
@@ -244,8 +290,11 @@ export default function AdminUsers() {
     });
     setFormError('');
     setPayslips([]);
+    setFeedback([]);
+    setNewFeedback('');
     setDialogOpen(true);
     fetchPayslips(user.matricule);
+    fetchFeedback(user.matricule);
   };
 
   const handleSave = async () => {
@@ -410,7 +459,18 @@ export default function AdminUsers() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h5">Gestion des utilisateurs</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Typography variant="h5">Gestion des utilisateurs</Typography>
+            {!loading && (
+              <Chip
+                label={`${users.length} utilisateur${users.length !== 1 ? 's' : ''}`}
+                size="small"
+                color="primary"
+                variant="outlined"
+                sx={{ fontWeight: 600 }}
+              />
+            )}
+          </Box>
           <Typography color="text.secondary">Ajouter, modifier ou supprimer des comptes employés</Typography>
         </Box>
         <Button variant="contained" startIcon={<PersonAddOutlined />} onClick={openCreate}>
@@ -630,6 +690,71 @@ export default function AdminUsers() {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+
+              {/* ── Feedback section ── */}
+              <Divider sx={{ my: 3 }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                <ChatBubbleOutlineOutlined fontSize="small" color="primary" />
+                <Typography fontWeight={600} fontSize={14}>Notes / Messages</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                <TextField
+                  placeholder="Ajouter une note pour cet employé…"
+                  value={newFeedback}
+                  onChange={e => setNewFeedback(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddFeedback(); } }}
+                  size="small"
+                  fullWidth
+                  multiline
+                  maxRows={3}
+                  inputProps={{ maxLength: 1000 }}
+                />
+                <Tooltip title="Envoyer">
+                  <span>
+                    <IconButton
+                      color="primary"
+                      onClick={handleAddFeedback}
+                      disabled={feedbackSaving || !newFeedback.trim()}
+                    >
+                      {feedbackSaving ? <CircularProgress size={20} /> : <SendOutlined />}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
+              {feedbackLoading ? (
+                [1, 2].map(i => <Skeleton key={i} height={48} sx={{ mb: 1, borderRadius: 2 }} />)
+              ) : feedback.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">Aucun message pour cet employé.</Typography>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {feedback.map(f => {
+                    const fromEmployee = f.created_by === editTarget?.matricule;
+                    return (
+                      <Box key={f.id} sx={{
+                        p: 1.5, borderRadius: 2, border: '1px solid',
+                        bgcolor: fromEmployee ? 'secondary.50' : 'primary.50',
+                        borderColor: fromEmployee ? 'secondary.200' : 'primary.100',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1
+                      }}>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="caption" fontWeight={600} color={fromEmployee ? 'secondary.dark' : 'primary.dark'} sx={{ mb: 0.5, display: 'block' }}>
+                            {fromEmployee ? `${editTarget?.prenom} ${editTarget?.nom}` : 'Administration'}
+                          </Typography>
+                          <Typography fontSize={13}>{f.message}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(f.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </Typography>
+                        </Box>
+                        <Tooltip title="Supprimer">
+                          <IconButton size="small" color="error" onClick={() => handleDeleteFeedback(f.id)} disabled={feedbackDeleting === f.id}>
+                            {feedbackDeleting === f.id ? <CircularProgress size={14} /> : <DeleteOutlined sx={{ fontSize: 15 }} />}
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    );
+                  })}
+                </Box>
               )}
             </Box>
           ) : (

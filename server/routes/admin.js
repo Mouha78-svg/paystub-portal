@@ -14,6 +14,12 @@ router.put('/users/:matricule', ctrl.updateUser);
 router.delete('/users/:matricule', ctrl.deleteUser);
 router.post('/users/:matricule/reset-password', ctrl.resetPassword);
 
+// Feedback management
+router.get('/feedback', ctrl.getAllUserFeedback);
+router.get('/users/:matricule/feedback', ctrl.getFeedback);
+router.post('/users/:matricule/feedback', ctrl.addFeedback);
+router.delete('/feedback/:id', ctrl.deleteFeedback);
+
 // Payslip management
 router.get('/users/:matricule/payslips', ctrl.getPayslips);
 router.post('/users/:matricule/payslips', uploadPdf.single('pdf'), ctrl.addPayslip);

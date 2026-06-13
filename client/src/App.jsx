@@ -14,6 +14,7 @@ import Payslips from './pages/Payslips';
 import Profile from './pages/Profile';
 import Sync from './pages/Sync';
 import AdminUsers from './pages/AdminUsers';
+import AdminFeedback from './pages/AdminFeedback';
 
 function AdminRoute({ children }) {
   const { user } = useAuth();
@@ -39,6 +40,7 @@ export default function App() {
               <Route path="profile" element={<Profile />} />
               <Route path="sync" element={<AdminRoute><Sync /></AdminRoute>} />
               <Route path="admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+              <Route path="admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
             </Route>
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
