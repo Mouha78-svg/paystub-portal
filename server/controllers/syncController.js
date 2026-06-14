@@ -258,12 +258,13 @@ const MONTH_MAP = {
 };
 
 function parseBulletinPage(text) {
-  const mMat = text.match(/Matricule\s+(\S+)/);
-  const mPer = text.match(/P.riode\s+du\s+(\d{2})\/(\d{2})\/(\d{2})/);
+  const mMat = text.match(/Matricule\s*:?\s*(\S+)/);
+  const mPer = text.match(/P.riode\s+du\s*(\d{2})\/(\d{2})\/(\d{2,4})/);
   if (!mMat || !mPer) return null;
   const matricule = mMat[1].trim().toUpperCase();
   const monthNum  = mPer[2].padStart(2, '0');
-  const year      = 2000 + parseInt(mPer[3]);
+  const yearRaw   = parseInt(mPer[3]);
+  const year      = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
   const filename  = `${matricule}_${year}_${monthNum}.pdf`;
   const mois      = MONTH_MAP[monthNum] || monthNum;
   return { matricule, monthNum, year, mois, filename };
@@ -350,9 +351,11 @@ exports.syncBulletinPDF = async (req, res, next) => {
       `INSERT INTO payslips (matricule, nom, prenom, mois, annee, numero, salaire_brut, salaire_net, fichier_pdf, synced_at)
        VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, NOW())
        ON CONFLICT(matricule, mois, annee, numero) DO UPDATE SET
+         nom = CASE WHEN EXCLUDED.nom != '' THEN EXCLUDED.nom ELSE payslips.nom END,
+         prenom = CASE WHEN EXCLUDED.prenom != '' THEN EXCLUDED.prenom ELSE payslips.prenom END,
          fichier_pdf = EXCLUDED.fichier_pdf,
          synced_at = NOW()`,
-      [info.matricule, empInfo.nom, empInfo.prenom, info.mois, info.year, numero, filename]
+      [info.matricule, emp?.nom || '', emp?.prenom || '', info.mois, info.year, numero, filename]
     );
 
     saved.push(filename);

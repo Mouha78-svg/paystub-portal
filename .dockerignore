@@ -1,0 +1,8 @@
+server/node_modules
+client/node_modules
+client/dist
+**/.git
+**/npm-debug.log
+server/pdf
+server/csv
+*.md
