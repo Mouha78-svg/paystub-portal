@@ -1,8 +1,73 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { pool } = require('../database/db');
-const { sendPasswordResetEmail } = require('../utils/mailer');
+const { sendPasswordResetEmail, sendNewDeviceAlert } = require('../utils/mailer');
 const { generatePin } = require('../utils/generatePin');
+
+function parseUserAgent(ua) {
+  if (!ua) return 'Appareil inconnu';
+  let device = 'Appareil inconnu';
+  let browser = 'Navigateur inconnu';
+
+  if (/iPhone/.test(ua)) device = 'iPhone';
+  else if (/iPad/.test(ua)) device = 'iPad';
+  else if (/Android/.test(ua)) {
+    const ver = ua.match(/Android [0-9.]+/)?.[0] || 'Android';
+    device = /Mobile/.test(ua) ? `Téléphone (${ver})` : `Tablette (${ver})`;
+  }
+  else if (/Windows NT 10|Windows NT 11/.test(ua)) device = 'PC Windows 10/11';
+  else if (/Windows NT 6\.3/.test(ua)) device = 'PC Windows 8.1';
+  else if (/Windows NT 6\.1/.test(ua)) device = 'PC Windows 7';
+  else if (/Macintosh|Mac OS X/.test(ua)) device = 'Mac';
+  else if (/Linux/.test(ua)) device = 'Linux';
+
+  if (/Edg\//.test(ua)) browser = 'Microsoft Edge';
+  else if (/OPR\/|Opera/.test(ua)) browser = 'Opera';
+  else if (/SamsungBrowser/.test(ua)) browser = 'Samsung Internet';
+  else if (/YaBrowser/.test(ua)) browser = 'Yandex Browser';
+  else if (/Chrome\//.test(ua)) browser = 'Google Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Mozilla Firefox';
+  else if (/Version\//.test(ua) && /Safari\//.test(ua)) browser = 'Safari';
+  else if (/MSIE|Trident/.test(ua)) browser = 'Internet Explorer';
+
+  return `${browser} sur ${device}`;
+}
+
+function deviceHash(ua) {
+  return crypto.createHash('sha256').update(ua || '').digest('hex').substring(0, 40);
+}
+
+async function handleDeviceCheck(req, employee, alertOnNew = true) {
+  try {
+    const ua = req.headers['user-agent'] || '';
+    const ip = req.ip || '';
+    const hash = deviceHash(ua);
+    const label = parseUserAgent(ua);
+
+    const { rows } = await pool.query(
+      'SELECT id FROM known_devices WHERE matricule=$1 AND device_hash=$2',
+      [employee.matricule, hash]
+    );
+
+    if (rows.length === 0) {
+      await pool.query(
+        `INSERT INTO known_devices (matricule, device_hash, user_agent, ip_address, device_label)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [employee.matricule, hash, ua.substring(0, 500), ip, label]
+      );
+      if (alertOnNew && employee.email) {
+        sendNewDeviceAlert(employee.email, employee.prenom, label, ip, new Date()).catch(() => {});
+      }
+    } else {
+      await pool.query(
+        `UPDATE known_devices SET last_seen_at=NOW(), ip_address=$1
+         WHERE matricule=$2 AND device_hash=$3`,
+        [ip, employee.matricule, hash]
+      );
+    }
+  } catch {} // device tracking must never break login
+}
 
 async function recordAttempt(matricule, ip, success) {
   await pool.query(
@@ -64,6 +129,10 @@ exports.login = async (req, res, next) => {
       return res.status(403).json({ message: 'Compte désactivé. Contactez les RH.' });
 
     await recordAttempt(matricule, req.ip, true);
+
+    // Check for new device; alert employee if unrecognised (fire-and-forget)
+    handleDeviceCheck(req, employee, true);
+
     const token = jwt.sign(
       { matricule: employee.matricule, nom: employee.nom, prenom: employee.prenom, service: employee.service, is_admin: employee.is_admin },
       process.env.JWT_SECRET,
@@ -105,6 +174,9 @@ exports.changePassword = async (req, res, next) => {
       `UPDATE employees SET password_hash=$1, is_active=1, first_login=0, updated_at=NOW() WHERE matricule=$2`,
       [hash, matricule.toUpperCase()]
     );
+
+    // Register this as a trusted device without alerting (it's the first login)
+    handleDeviceCheck(req, employee, false);
 
     const token = jwt.sign(
       { matricule: employee.matricule, nom: employee.nom, prenom: employee.prenom, service: employee.service, is_admin: employee.is_admin },

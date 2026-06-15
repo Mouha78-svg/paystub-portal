@@ -10,18 +10,19 @@ import {
 import {
   DashboardOutlined, ReceiptLongOutlined, PersonOutlined,
   MenuOutlined, LogoutOutlined, SyncOutlined, ChevronLeft,
-  PeopleOutlined, ChatBubbleOutlineOutlined
+  PeopleOutlined, ChatBubbleOutlineOutlined, ForumOutlined
 } from '@mui/icons-material';
 
 const DRAWER_WIDTH = 250;
 
-const BASE_NAV_ITEMS = [
+const NAV_ITEMS = [
   { label: 'Tableau de bord', icon: <DashboardOutlined />, path: '/dashboard' },
   { label: 'Bulletins de salaire', icon: <ReceiptLongOutlined />, path: '/payslips' },
   { label: 'Mon profil', icon: <PersonOutlined />, path: '/profile' },
+  { label: 'Messagerie', icon: <ForumOutlined />, path: '/messages', employeeOnly: true },
   { label: 'Synchronisation', icon: <SyncOutlined />, path: '/sync', adminOnly: true },
   { label: 'Utilisateurs', icon: <PeopleOutlined />, path: '/admin/users', adminOnly: true },
-  { label: 'Messages employés', icon: <ChatBubbleOutlineOutlined />, path: '/admin/feedback', adminOnly: true },
+  { label: 'Messagerie', icon: <ChatBubbleOutlineOutlined />, path: '/admin/feedback', adminOnly: true },
 ];
 
 export default function Layout() {
@@ -34,13 +35,24 @@ export default function Layout() {
   const [anchorEl, setAnchorEl] = useState(null);
 
   const initials = user ? `${user.prenom[0]}${user.nom[0]}`.toUpperCase() : 'U';
-  const [complaintCount, setComplaintCount] = useState(null);
+
+  // Badge counts
+  const [unreadMsgCount, setUnreadMsgCount] = useState(null); // employee: admin replies + broadcasts
+  const [unreadComplaintCount, setUnreadComplaintCount] = useState(null); // admin: unread employee messages
   const [userCount, setUserCount] = useState(null);
 
   useEffect(() => {
-    if (user?.is_admin) {
-      api.get('/admin/feedback').then(r => setComplaintCount(r.data.length)).catch(() => {});
+    if (!user) return;
+    if (user.is_admin) {
+      api.get('/admin/feedback/unread-count').then(r => setUnreadComplaintCount(r.data.count)).catch(() => {});
       api.get('/admin/users').then(r => setUserCount(r.data.length)).catch(() => {});
+    } else {
+      Promise.all([
+        api.get('/feedback/unread-count'),
+        api.get('/broadcasts/unread-count'),
+      ]).then(([feedRes, bcastRes]) => {
+        setUnreadMsgCount(feedRes.data.count + bcastRes.data.count);
+      }).catch(() => {});
     }
   }, [user?.is_admin]);
 
@@ -48,6 +60,12 @@ export default function Layout() {
     await logout();
     navigate('/login');
   };
+
+  const visibleItems = NAV_ITEMS.filter(item => {
+    if (item.adminOnly) return user?.is_admin;
+    if (item.employeeOnly) return !user?.is_admin;
+    return true;
+  });
 
   const DrawerContent = () => (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #7D3C00 0%, #5C2D00 100%)' }}>
@@ -74,8 +92,19 @@ export default function Layout() {
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.1)', mb: 1 }} />
 
       <List sx={{ flex: 1, px: 1 }}>
-        {BASE_NAV_ITEMS.filter(item => !item.adminOnly || user?.is_admin).map(item => {
+        {visibleItems.map(item => {
           const active = location.pathname === item.path;
+
+          // Badge value for this nav item
+          let badge = null;
+          if (item.path === '/admin/users' && userCount !== null) {
+            badge = userCount;
+          } else if (item.path === '/admin/feedback' && unreadComplaintCount > 0) {
+            badge = unreadComplaintCount;
+          } else if (item.path === '/messages' && unreadMsgCount > 0) {
+            badge = unreadMsgCount;
+          }
+
           return (
             <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
@@ -94,18 +123,15 @@ export default function Layout() {
                   fontSize: 14, fontWeight: active ? 600 : 400,
                   color: active ? '#fff' : 'rgba(255,255,255,0.7)'
                 }} />
-                {item.path === '/admin/users' && userCount !== null && (
+                {badge !== null && (
                   <Chip
-                    label={userCount}
+                    label={badge}
                     size="small"
-                    sx={{ height: 18, fontSize: 10, fontWeight: 700, bgcolor: 'rgba(255,255,255,0.2)', color: '#fff', mr: 0.5 }}
-                  />
-                )}
-                {item.path === '/admin/feedback' && complaintCount > 0 && (
-                  <Chip
-                    label={complaintCount}
-                    size="small"
-                    sx={{ height: 18, fontSize: 10, fontWeight: 700, bgcolor: '#C68B2E', color: '#fff', mr: 0.5 }}
+                    sx={{
+                      height: 18, fontSize: 10, fontWeight: 700, mr: 0.5,
+                      bgcolor: item.path === '/admin/users' ? 'rgba(255,255,255,0.2)' : '#C68B2E',
+                      color: '#fff',
+                    }}
                   />
                 )}
                 {active && <ChevronLeft sx={{ color: 'rgba(255,255,255,0.5)', transform: 'rotate(180deg)', fontSize: 18 }} />}

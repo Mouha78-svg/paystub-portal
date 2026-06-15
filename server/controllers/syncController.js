@@ -8,6 +8,8 @@ const pdfParse = require('pdf-parse');
 const { pool } = require('../database/db');
 const { generatePin } = require('../utils/generatePin');
 
+// ── CSV / ZIP helpers ────────────────────────────────────────────────────────
+
 function parseRow(row, errors) {
   const {
     matricule, nom, prenom, service, email, is_admin, pin,
@@ -149,7 +151,6 @@ exports.syncPDFs = async (req, res, next) => {
     }
   }
 
-  // Count how many stored PDFs match an existing payslip record
   let matched = 0;
   if (stored.length > 0) {
     const placeholders = stored.map((_, i) => `$${i + 1}`).join(', ');
@@ -189,7 +190,7 @@ exports.syncZIP = async (req, res, next) => {
     const pdfFiles = allFiles.filter(f => f.toLowerCase().endsWith('.pdf'));
 
     if (csvFiles.length === 0) {
-      return res.status(400).json({ message: 'Aucun fichier CSV trouvé dans l\'archive ZIP' });
+      return res.status(400).json({ message: "Aucun fichier CSV trouvé dans l'archive ZIP" });
     }
     if (csvFiles.length > 1) {
       return res.status(400).json({ message: `Plusieurs fichiers CSV trouvés dans l'archive (${csvFiles.join(', ')}). Un seul est autorisé.` });
@@ -217,9 +218,7 @@ exports.syncZIP = async (req, res, next) => {
 
     let pdfsImported = 0;
     for (const pdfFile of pdfFiles) {
-      const src = path.join(extractDir, pdfFile);
-      const dest = path.join(pdfDir, pdfFile);
-      fs.copyFileSync(src, dest);
+      fs.copyFileSync(path.join(extractDir, pdfFile), path.join(pdfDir, pdfFile));
       pdfsImported++;
     }
 
@@ -237,7 +236,74 @@ exports.syncZIP = async (req, res, next) => {
   }
 };
 
-// ── Bulletin PDF multi-pages → split par employé ─────────────────────────────
+// ── Bulletin PDF multi-pages — background job processing ─────────────────────
+
+// In-memory job store (single-instance deployment)
+const jobs = new Map();
+
+const MONTH_MAP = {
+  '01': 'Janvier', '02': 'Février', '03': 'Mars', '04': 'Avril',
+  '05': 'Mai', '06': 'Juin', '07': 'Juillet', '08': 'Août',
+  '09': 'Septembre', '10': 'Octobre', '11': 'Novembre', '12': 'Décembre',
+};
+
+function parseAmount(str) {
+  if (!str) return 0;
+  const v = parseFloat(str.trim().replace(/[\s ]/g, '').replace(',', '.'));
+  return isNaN(v) || v < 0 ? 0 : v;
+}
+
+function parseSalaries(text) {
+  const t = text.replace(/\s+/g, ' ');
+  let salaire_brut = 0;
+  let salaire_net = 0;
+
+  const brutPatterns = [
+    /[Bb]rut\s+[Ii]mposable\s+([\d][\d\s,]*)/,
+    /[Ss]alaire\s+[Bb]rut\s+([\d][\d\s,]*)/,
+    /[Tt]otal\s+[Bb]rut\s+([\d][\d\s,]*)/,
+    /[Tt]raitement\s+[Bb]rut\s+([\d][\d\s,]*)/,
+    /[Mm]ontant\s+[Bb]rut\s+([\d][\d\s,]*)/,
+  ];
+  for (const p of brutPatterns) {
+    const m = t.match(p);
+    if (m) { salaire_brut = parseAmount(m[1]); break; }
+  }
+
+  const netPatterns = [
+    /[Nn]et\s+[àa]\s+[Pp]ayer\s+([\d][\d\s,]*)/,
+    /[Nn]et\s+[Pp]ay[ée]\s+([\d][\d\s,]*)/,
+    /[Nn]et\s+[Ff]iscal\s+([\d][\d\s,]*)/,
+    /[Mm]ontant\s+[Nn]et\s+([\d][\d\s,]*)/,
+  ];
+  for (const p of netPatterns) {
+    const m = t.match(p);
+    if (m) { salaire_net = parseAmount(m[1]); break; }
+  }
+
+  return { salaire_brut, salaire_net };
+}
+
+function parseBulletinPage(text) {
+  const t = text.replace(/\s+/g, ' ');
+
+  // Match matricule: e.g. "Matricule EMP001" or "Matricule : EMP001"
+  const mMat = t.match(/[Mm]atricule\s*:?\s*([A-Z]{1,5}[0-9]{2,6})/i)
+            || t.match(/[Mm]atricule\s*:?\s*(\S+)/i);
+
+  // Match period: "Période du DD/MM/YYYY" (handles é or e)
+  const mPer = t.match(/[Pp][eé]riode\s+du\s+(\d{2})\/(\d{2})\/(\d{2,4})/i);
+
+  if (!mMat || !mPer) return null;
+
+  const matricule = mMat[1].trim().toUpperCase();
+  const monthNum  = mPer[2].padStart(2, '0');
+  const yearRaw   = parseInt(mPer[3]);
+  const year      = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+  const mois      = MONTH_MAP[monthNum] || monthNum;
+
+  return { matricule, monthNum, year, mois };
+}
 
 async function stampPage(pdfDoc, emp, info) {
   const page = pdfDoc.getPages()[0];
@@ -251,80 +317,105 @@ async function stampPage(pdfDoc, emp, info) {
   page.drawText(label, { x: 10, y: 4, size: 8, font, color: rgb(0.15, 0.15, 0.15) });
 }
 
-const MONTH_MAP = {
-  '01': 'Janvier', '02': 'Février', '03': 'Mars', '04': 'Avril',
-  '05': 'Mai', '06': 'Juin', '07': 'Juillet', '08': 'Août',
-  '09': 'Septembre', '10': 'Octobre', '11': 'Novembre', '12': 'Décembre',
-};
-
-function parseBulletinPage(text) {
-  const mMat = text.match(/Matricule\s*:?\s*(\S+)/);
-  const mPer = text.match(/P.riode\s+du\s*(\d{2})\/(\d{2})\/(\d{2,4})/);
-  if (!mMat || !mPer) return null;
-  const matricule = mMat[1].trim().toUpperCase();
-  const monthNum  = mPer[2].padStart(2, '0');
-  const yearRaw   = parseInt(mPer[3]);
-  const year      = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
-  const filename  = `${matricule}_${year}_${monthNum}.pdf`;
-  const mois      = MONTH_MAP[monthNum] || monthNum;
-  return { matricule, monthNum, year, mois, filename };
-}
-
+// Start background job and return jobId immediately
 exports.syncBulletinPDF = async (req, res, next) => {
   if (!req.file) return res.status(400).json({ message: 'Aucun fichier PDF fourni' });
 
+  const jobId = uuidv4();
+  jobs.set(jobId, {
+    status: 'parsing',
+    progress: 0,
+    total: 0,
+    saved: 0,
+    errors: [],
+    startedAt: new Date().toISOString(),
+    doneAt: null,
+    errorMessage: null,
+  });
+
+  // Respond immediately so the client doesn't time out
+  res.json({ jobId });
+
+  // Process asynchronously — errors update job.status to 'error'
+  processBulletinAsync(req.file.path, jobId).catch(err => {
+    const job = jobs.get(jobId);
+    if (job) {
+      job.status = 'error';
+      job.errorMessage = err.message;
+      job.doneAt = new Date().toISOString();
+    }
+  });
+};
+
+// Poll endpoint — called by frontend every ~1.5 s
+exports.getBulletinJobStatus = (req, res) => {
+  const job = jobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ message: 'Tâche introuvable ou expirée' });
+  res.json(job);
+};
+
+async function processBulletinAsync(filePath, jobId) {
+  const job = jobs.get(jobId);
   const pdfDir = path.resolve(process.env.PDF_DIR || './pdf');
   fs.mkdirSync(pdfDir, { recursive: true });
 
-  const fileBuffer = fs.readFileSync(req.file.path);
+  const fileBuffer = fs.readFileSync(filePath);
+
+  // ── Step 1: single-pass text extraction (one pdf-parse call for all pages) ──
+  const pageTexts = [];
+  try {
+    await pdfParse(fileBuffer, {
+      pagerender: (pageData) =>
+        pageData.getTextContent({ normalizeWhitespace: true }).then(tc => {
+          const text = tc.items.map(i => i.str).join(' ');
+          pageTexts.push(text);
+          return text;
+        }),
+    });
+  } catch (e) {
+    throw new Error(`Impossible d'extraire le texte du PDF : ${e.message}`);
+  }
+
+  // ── Step 2: load PDF for splitting / stamping ────────────────────────────
+  job.status = 'processing';
   let srcDoc;
   try {
     srcDoc = await PDFDocument.load(fileBuffer);
   } catch (e) {
-    return res.status(400).json({ message: 'Fichier PDF invalide ou corrompu' });
+    throw new Error(`PDF invalide ou corrompu : ${e.message}`);
   }
 
   const totalPages = srcDoc.getPageCount();
-  const saved = [];
-  const skipped = [];
-  const errors = [];
+  job.total = totalPages;
+
   const seenPages = new Map();
-  const empCache = new Map();
+  const empCache  = new Map();
 
+  // ── Step 3: process each page ────────────────────────────────────────────
   for (let i = 0; i < totalPages; i++) {
-    let pageText = '';
-    try {
-      const singleDoc = await PDFDocument.create();
-      const [copied] = await singleDoc.copyPages(srcDoc, [i]);
-      singleDoc.addPage(copied);
-      const singleBuf = Buffer.from(await singleDoc.save());
+    job.progress = i + 1;
 
-      // Extract text for header parsing
-      const parsed = await pdfParse(singleBuf);
-      pageText = parsed.text || '';
-    } catch (e) {
-      errors.push(`Page ${i + 1}: erreur extraction — ${e.message}`);
-      continue;
-    }
-
+    const pageText = pageTexts[i] || '';
     const info = parseBulletinPage(pageText);
+
     if (!info) {
-      errors.push(`Page ${i + 1}: en-tête non reconnu (matricule/période introuvable)`);
+      job.errors.push(`Page ${i + 1} : en-tête non reconnu (matricule/période introuvable)`);
       continue;
     }
 
-    // Assign numero (1 for first occurrence, 2 for second, reject beyond that)
+    // Assign bulletin numero (max 2 per employee/month)
     const pageKey = `${info.matricule}_${info.year}_${info.monthNum}`;
-    const numero = (seenPages.get(pageKey) || 0) + 1;
+    const numero  = (seenPages.get(pageKey) || 0) + 1;
     if (numero > 2) {
-      errors.push(`Page ${i + 1}: plus de 2 bulletins pour ${info.matricule} ${info.mois} ${info.year}, ignoré`);
+      job.errors.push(`Page ${i + 1} : plus de 2 bulletins pour ${info.matricule} ${info.mois} ${info.year} — ignoré`);
       continue;
     }
     seenPages.set(pageKey, numero);
 
     const filename = `${info.matricule}_${info.year}_${info.monthNum}_${numero}.pdf`;
+    const { salaire_brut, salaire_net } = parseSalaries(pageText);
 
-    // Look up employee name for the stamp (cached per matricule)
+    // Cache employee lookup
     if (!empCache.has(info.matricule)) {
       const { rows } = await pool.query(
         'SELECT nom, prenom FROM employees WHERE matricule=$1', [info.matricule]
@@ -333,41 +424,50 @@ exports.syncBulletinPDF = async (req, res, next) => {
     }
     const emp = empCache.get(info.matricule);
 
-    // Extract, stamp, and save the single-page PDF
+    if (!emp) {
+      job.errors.push(`Page ${i + 1} : employé ${info.matricule} introuvable en base — bulletin ignoré`);
+      continue;
+    }
+
+    // Extract page, stamp, write to disk
     try {
       const out = await PDFDocument.create();
       const [copiedPage] = await out.copyPages(srcDoc, [i]);
       out.addPage(copiedPage);
       await stampPage(out, emp, { matricule: info.matricule, mois: info.mois, year: info.year });
-      const outBuf = Buffer.from(await out.save());
-      fs.writeFileSync(path.join(pdfDir, filename), outBuf);
+      fs.writeFileSync(path.join(pdfDir, filename), Buffer.from(await out.save()));
     } catch (e) {
-      errors.push(`Page ${i + 1} (${info.matricule}): erreur sauvegarde — ${e.message}`);
+      job.errors.push(`Page ${i + 1} (${info.matricule}) : erreur sauvegarde PDF — ${e.message}`);
       continue;
     }
 
-    // Upsert: create payslip record if missing, otherwise just update fichier_pdf
-    await pool.query(
-      `INSERT INTO payslips (matricule, nom, prenom, mois, annee, numero, salaire_brut, salaire_net, fichier_pdf, synced_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, NOW())
-       ON CONFLICT(matricule, mois, annee, numero) DO UPDATE SET
-         nom = CASE WHEN EXCLUDED.nom != '' THEN EXCLUDED.nom ELSE payslips.nom END,
-         prenom = CASE WHEN EXCLUDED.prenom != '' THEN EXCLUDED.prenom ELSE payslips.prenom END,
-         fichier_pdf = EXCLUDED.fichier_pdf,
-         synced_at = NOW()`,
-      [info.matricule, emp?.nom || '', emp?.prenom || '', info.mois, info.year, numero, filename]
-    );
-
-    saved.push(filename);
+    // Upsert payslip: update salary only when extracted value > 0 (don't clobber existing CSV data)
+    try {
+      await pool.query(
+        `INSERT INTO payslips
+           (matricule, nom, prenom, mois, annee, numero, salaire_brut, salaire_net, fichier_pdf, synced_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())
+         ON CONFLICT(matricule,mois,annee,numero) DO UPDATE SET
+           nom          = CASE WHEN EXCLUDED.nom != ''         THEN EXCLUDED.nom         ELSE payslips.nom          END,
+           prenom       = CASE WHEN EXCLUDED.prenom != ''      THEN EXCLUDED.prenom      ELSE payslips.prenom       END,
+           salaire_brut = CASE WHEN EXCLUDED.salaire_brut > 0  THEN EXCLUDED.salaire_brut ELSE payslips.salaire_brut END,
+           salaire_net  = CASE WHEN EXCLUDED.salaire_net  > 0  THEN EXCLUDED.salaire_net  ELSE payslips.salaire_net  END,
+           fichier_pdf  = EXCLUDED.fichier_pdf,
+           synced_at    = NOW()`,
+        [info.matricule, emp.nom, emp.prenom, info.mois, info.year, numero,
+         salaire_brut, salaire_net, filename]
+      );
+      job.saved++;
+    } catch (e) {
+      job.errors.push(`Page ${i + 1} (${info.matricule}) : erreur base de données — ${e.message}`);
+    }
   }
 
-  try { fs.unlinkSync(req.file.path); } catch (_) {}
+  job.status  = 'done';
+  job.doneAt  = new Date().toISOString();
 
-  res.json({
-    message: `${saved.length} bulletin(s) extrait(s) sur ${totalPages} page(s)`,
-    total: totalPages,
-    saved: saved.length,
-    skipped: skipped.length,
-    errors,
-  });
-};
+  try { fs.unlinkSync(filePath); } catch (_) {}
+
+  // Auto-expire job after 10 minutes
+  setTimeout(() => jobs.delete(jobId), 10 * 60 * 1000);
+}

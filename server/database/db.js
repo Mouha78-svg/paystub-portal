@@ -110,9 +110,51 @@ async function initDB() {
       matricule TEXT NOT NULL REFERENCES employees(matricule) ON DELETE CASCADE,
       message TEXT NOT NULL,
       created_by TEXT NOT NULL,
+      is_read BOOLEAN DEFAULT FALSE,
+      read_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  await pool.query(`ALTER TABLE feedback ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE feedback ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS broadcasts (
+      id SERIAL PRIMARY KEY,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_by TEXT NOT NULL REFERENCES employees(matricule),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS broadcast_reads (
+      broadcast_id INTEGER NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
+      matricule TEXT NOT NULL REFERENCES employees(matricule) ON DELETE CASCADE,
+      read_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (broadcast_id, matricule)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS known_devices (
+      id SERIAL PRIMARY KEY,
+      matricule TEXT NOT NULL REFERENCES employees(matricule) ON DELETE CASCADE,
+      device_hash TEXT NOT NULL,
+      user_agent TEXT NOT NULL,
+      ip_address TEXT,
+      device_label TEXT,
+      first_seen_at TIMESTAMPTZ DEFAULT NOW(),
+      last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(matricule, device_hash)
+    )
+  `);
+
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_known_devices_matricule ON known_devices(matricule)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_feedback_matricule ON feedback(matricule)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_broadcast_reads_matricule ON broadcast_reads(matricule)`);
 
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_payslips_matricule ON payslips(matricule)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_payslips_annee ON payslips(annee)`);

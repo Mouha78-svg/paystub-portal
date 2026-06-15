@@ -2,6 +2,8 @@ const { pool } = require('../database/db');
 const path = require('path');
 const fs = require('fs');
 const { generatePin } = require('../utils/generatePin');
+const { sendMessageNotification, sendBroadcastEmail } = require('../utils/mailer');
+const { servePayslipPDF } = require('./payslipController');
 
 exports.getUsers = async (req, res, next) => {
   try {
@@ -117,7 +119,7 @@ exports.resetPassword = async (req, res, next) => {
 exports.getAllUserFeedback = async (req, res, next) => {
   try {
     const { rows } = await pool.query(`
-      SELECT f.id, f.matricule, f.message, f.created_at,
+      SELECT f.id, f.matricule, f.message, f.is_read, f.read_at, f.created_at,
              e.nom, e.prenom, e.service
       FROM feedback f
       JOIN employees e ON e.matricule = f.matricule
@@ -125,6 +127,25 @@ exports.getAllUserFeedback = async (req, res, next) => {
       ORDER BY f.created_at DESC
     `);
     res.json(rows);
+  } catch (err) { next(err); }
+};
+
+exports.getUnreadFeedbackCount = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*) as cnt FROM feedback WHERE created_by = matricule AND is_read = false`
+    );
+    res.json({ count: parseInt(rows[0].cnt) });
+  } catch (err) { next(err); }
+};
+
+exports.markAllFeedbackRead = async (req, res, next) => {
+  try {
+    await pool.query(
+      `UPDATE feedback SET is_read = true, read_at = NOW()
+       WHERE created_by = matricule AND is_read = false`
+    );
+    res.json({ message: 'Messages marqués comme lus' });
   } catch (err) { next(err); }
 };
 
@@ -142,10 +163,19 @@ exports.addFeedback = async (req, res, next) => {
   try {
     const { message } = req.body;
     if (!message?.trim()) return res.status(400).json({ message: 'Message requis' });
+    const mat = req.params.matricule.toUpperCase();
     const { rows } = await pool.query(
       `INSERT INTO feedback (matricule, message, created_by) VALUES ($1, $2, $3) RETURNING *`,
-      [req.params.matricule.toUpperCase(), message.trim(), req.user.matricule]
+      [mat, message.trim(), req.user.matricule]
     );
+    // Notify employee by email (fire-and-forget)
+    pool.query(`SELECT email, prenom FROM employees WHERE matricule = $1 AND email IS NOT NULL`, [mat])
+      .then(({ rows: emps }) => {
+        if (emps[0]) {
+          sendMessageNotification(emps[0].email, emps[0].prenom, "L'Administration", message.trim())
+            .catch(() => {});
+        }
+      }).catch(() => {});
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 };
@@ -158,6 +188,63 @@ exports.deleteFeedback = async (req, res, next) => {
     );
     if (rows.length === 0) return res.status(404).json({ message: 'Message introuvable' });
     res.json({ message: 'Message supprimé' });
+  } catch (err) { next(err); }
+};
+
+// ── Broadcast management ─────────────────────────────────────────────────────
+
+exports.getBroadcasts = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT b.id, b.subject, b.body, b.created_at,
+             e.nom AS sender_nom, e.prenom AS sender_prenom,
+             COUNT(br.matricule) AS read_count,
+             (SELECT COUNT(*) FROM employees WHERE is_admin = 0) AS total_employees
+      FROM broadcasts b
+      JOIN employees e ON e.matricule = b.created_by
+      LEFT JOIN broadcast_reads br ON br.broadcast_id = b.id
+      GROUP BY b.id, e.nom, e.prenom
+      ORDER BY b.created_at DESC
+    `);
+    res.json(rows.map(r => ({
+      ...r,
+      read_count: parseInt(r.read_count),
+      total_employees: parseInt(r.total_employees),
+    })));
+  } catch (err) { next(err); }
+};
+
+exports.createBroadcast = async (req, res, next) => {
+  try {
+    const { subject, body } = req.body;
+    if (!subject?.trim() || !body?.trim())
+      return res.status(400).json({ message: 'Objet et contenu requis' });
+
+    const { rows } = await pool.query(
+      `INSERT INTO broadcasts (subject, body, created_by) VALUES ($1, $2, $3) RETURNING *`,
+      [subject.trim(), body.trim(), req.user.matricule]
+    );
+
+    // Email all non-admin employees (fire-and-forget)
+    pool.query(`SELECT email, prenom FROM employees WHERE is_admin = 0 AND email IS NOT NULL`)
+      .then(({ rows: emps }) => {
+        if (emps.length > 0) {
+          sendBroadcastEmail(emps, subject.trim(), body.trim()).catch(() => {});
+        }
+      }).catch(() => {});
+
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+};
+
+exports.deleteBroadcast = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `DELETE FROM broadcasts WHERE id = $1 RETURNING id`,
+      [parseInt(req.params.id)]
+    );
+    if (rows.length === 0) return res.status(404).json({ message: 'Annonce introuvable' });
+    res.json({ message: 'Annonce supprimée' });
   } catch (err) { next(err); }
 };
 
@@ -273,6 +360,17 @@ exports.deletePayslip = async (req, res, next) => {
     }
 
     res.json({ message: 'Bulletin supprimé' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.downloadPayslip = async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM payslips WHERE id=$1', [parseInt(req.params.id)]);
+    const payslip = rows[0];
+    if (!payslip) return res.status(404).json({ message: 'Bulletin introuvable' });
+    return await servePayslipPDF(payslip, res, next);
   } catch (err) {
     next(err);
   }

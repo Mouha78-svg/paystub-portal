@@ -13,7 +13,7 @@ import {
   CheckCircleOutlined, VisibilityOutlined, VisibilityOffOutlined, SearchOutlined,
   RestartAltOutlined, UploadFileOutlined, WarningAmberOutlined,
   AddOutlined, PictureAsPdfOutlined, ReceiptLongOutlined,
-  ChatBubbleOutlineOutlined, SendOutlined
+  ChatBubbleOutlineOutlined, SendOutlined, CloseOutlined, DownloadOutlined
 } from '@mui/icons-material';
 
 const SERVICES = ['Informatique', 'Ressources Humaines', 'Finance', 'Direction', 'Logistique'];
@@ -111,6 +111,9 @@ export default function AdminUsers() {
   const [payslipError, setPayslipError] = useState('');
   const [payslipSaving, setPayslipSaving] = useState(false);
   const [payslipDeleting, setPayslipDeleting] = useState(null);
+  const [payslipPreviewing, setPayslipPreviewing] = useState(null);
+  const [previewPayslip, setPreviewPayslip] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
 
   // Feedback
   const [feedback, setFeedback] = useState([]);
@@ -264,6 +267,28 @@ export default function AdminUsers() {
     } finally {
       setPayslipDeleting(null);
     }
+  };
+
+  const handlePayslipPreview = async (p) => {
+    setPayslipPreviewing(p.id);
+    setPreviewPayslip(p);
+    setPreviewUrl(null);
+    try {
+      const response = await api.get(`/admin/payslips/${p.id}/download`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      setPreviewUrl(URL.createObjectURL(blob));
+    } catch {
+      setError("Impossible de charger l'aperçu");
+      setPreviewPayslip(null);
+    } finally {
+      setPayslipPreviewing(null);
+    }
+  };
+
+  const handleClosePreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewPayslip(null);
   };
 
   // ── Add / Edit employee ─────────────────────────────────────────────────────
@@ -672,6 +697,14 @@ export default function AdminUsers() {
                           </Tooltip>
                         </TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                          <Tooltip title="Aperçu du bulletin">
+                            <IconButton size="small" onClick={() => handlePayslipPreview(p)}
+                              disabled={payslipPreviewing === p.id}>
+                              {payslipPreviewing === p.id
+                                ? <CircularProgress size={14} />
+                                : <VisibilityOutlined sx={{ fontSize: 15 }} />}
+                            </IconButton>
+                          </Tooltip>
                           <Tooltip title="Modifier / remplacer le PDF">
                             <IconButton size="small" onClick={() => openPayslipEdit(p)}>
                               <EditOutlined sx={{ fontSize: 15 }} />
@@ -992,6 +1025,50 @@ export default function AdminUsers() {
         message={snack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+
+      {/* ── PDF Preview Dialog ── */}
+      <Dialog open={Boolean(previewPayslip)} onClose={handleClosePreview} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1.5 }}>
+          <Typography fontWeight={600}>
+            Aperçu — {previewPayslip?.mois} {previewPayslip?.annee}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Button
+              variant="contained" size="small" startIcon={<DownloadOutlined />}
+              disabled={!previewUrl}
+              onClick={async () => {
+                if (!previewUrl || !previewPayslip) return;
+                const a = document.createElement('a');
+                a.href = previewUrl;
+                a.download = `Bulletin_${previewPayslip.matricule}_${previewPayslip.mois}_${previewPayslip.annee}.pdf`;
+                a.click();
+              }}
+            >
+              Télécharger
+            </Button>
+            <IconButton size="small" onClick={handleClosePreview}>
+              <CloseOutlined />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent
+          sx={{
+            p: 0, height: '78vh',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            bgcolor: 'grey.100',
+          }}
+        >
+          {!previewUrl ? (
+            <CircularProgress />
+          ) : (
+            <iframe
+              src={previewUrl}
+              style={{ width: '100%', height: '100%', border: 'none' }}
+              title="Aperçu bulletin de salaire"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }

@@ -12,6 +12,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import Dashboard from './pages/Dashboard';
 import Payslips from './pages/Payslips';
 import Profile from './pages/Profile';
+import Messages from './pages/Messages';
 import Sync from './pages/Sync';
 import AdminUsers from './pages/AdminUsers';
 import AdminFeedback from './pages/AdminFeedback';
@@ -38,6 +39,7 @@ export default function App() {
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="payslips" element={<Payslips />} />
               <Route path="profile" element={<Profile />} />
+              <Route path="messages" element={<Messages />} />
               <Route path="sync" element={<AdminRoute><Sync /></AdminRoute>} />
               <Route path="admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
               <Route path="admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />

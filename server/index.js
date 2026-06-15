@@ -31,6 +31,7 @@ app.use('/api/payslips', require('./routes/payslips'));
 app.use('/api/sync', require('./routes/sync'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/feedback', require('./routes/feedback'));
+app.use('/api/broadcasts', require('./routes/broadcasts'));
 
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));

@@ -13,5 +13,6 @@ router.post('/csv', auth, admin, upload.single('csv'), ctrl.syncCSV);
 router.post('/zip', auth, admin, uploadZip.single('zip'), ctrl.syncZIP);
 router.post('/pdfs', auth, admin, uploadPdfs.array('pdfs', 100), ctrl.syncPDFs);
 router.post('/bulletin-pdf', auth, admin, uploadBulletin.single('bulletin'), ctrl.syncBulletinPDF);
+router.get('/bulletin-pdf/job/:jobId', auth, admin, ctrl.getBulletinJobStatus);
 
 module.exports = router;

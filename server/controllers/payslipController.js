@@ -80,6 +80,48 @@ exports.getYears = async (req, res, next) => {
   }
 };
 
+async function servePayslipPDF(payslip, res, next) {
+  const pdfDir = process.env.PDF_DIR || './pdf';
+
+  if (payslip.fichier_pdf) {
+    const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
+    if (fs.existsSync(filePath)) {
+      await pool.query('UPDATE payslips SET downloaded_at=NOW() WHERE id=$1', [payslip.id]);
+      return res.download(filePath, payslip.fichier_pdf);
+    }
+  }
+
+  const { rows: empRows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [payslip.matricule]);
+  const employee = empRows[0] || {};
+
+  const { rows: ytdRows } = await pool.query(
+    'SELECT * FROM payslips WHERE matricule=$1 AND annee=$2 ORDER BY id',
+    [payslip.matricule, payslip.annee]
+  );
+
+  const html = generateBulletin(payslip, employee, ytdRows);
+
+  const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  let pdfBuffer;
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    pdfBuffer = Buffer.from(await page.pdf({ format: 'A4', printBackground: true }));
+  } finally {
+    await browser.close();
+  }
+
+  const moisNum = MOIS_NUM[payslip.mois] || '00';
+  const fallbackName = payslip.fichier_pdf ||
+    `${payslip.matricule}_${payslip.annee}_${moisNum}_${payslip.numero || 1}.pdf`;
+  await pool.query('UPDATE payslips SET downloaded_at=NOW() WHERE id=$1', [payslip.id]);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${fallbackName}"`);
+  return res.end(pdfBuffer);
+}
+
+exports.servePayslipPDF = servePayslipPDF;
+
 exports.download = async (req, res, next) => {
   try {
     const { rows } = await pool.query(
@@ -88,44 +130,7 @@ exports.download = async (req, res, next) => {
     );
     const payslip = rows[0];
     if (!payslip) return res.status(404).json({ message: 'Bulletin introuvable ou accès refusé' });
-
-    const pdfDir = process.env.PDF_DIR || './pdf';
-
-    if (payslip.fichier_pdf) {
-      const filePath = path.resolve(pdfDir, payslip.fichier_pdf);
-      if (fs.existsSync(filePath)) {
-        await pool.query('UPDATE payslips SET downloaded_at=NOW() WHERE id=$1', [payslip.id]);
-        return res.download(filePath, payslip.fichier_pdf);
-      }
-    }
-
-    const { rows: empRows } = await pool.query('SELECT * FROM employees WHERE matricule=$1', [payslip.matricule]);
-    const employee = empRows[0] || {};
-
-    const { rows: ytdRows } = await pool.query(
-      'SELECT * FROM payslips WHERE matricule=$1 AND annee=$2 ORDER BY id',
-      [payslip.matricule, payslip.annee]
-    );
-
-    const html = generateBulletin(payslip, employee, ytdRows);
-
-    const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    let pdfBuffer;
-    try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-      pdfBuffer = Buffer.from(await page.pdf({ format: 'A4', printBackground: true }));
-    } finally {
-      await browser.close();
-    }
-
-    const moisNum = MOIS_NUM[payslip.mois] || '00';
-    const fallbackName = payslip.fichier_pdf ||
-      `${payslip.matricule}_${payslip.annee}_${moisNum}_${payslip.numero || 1}.pdf`;
-    await pool.query('UPDATE payslips SET downloaded_at=NOW() WHERE id=$1', [payslip.id]);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${fallbackName}"`);
-    return res.end(pdfBuffer);
+    return await servePayslipPDF(payslip, res, next);
   } catch (err) {
     console.error('PDF generation error:', err);
     next(err);
