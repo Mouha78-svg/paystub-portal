@@ -249,6 +249,7 @@ const MONTH_MAP = {
 
 function parseAmount(str) {
   if (!str) return 0;
+  // Remove all whitespace (incl. non-breaking spaces) before parsing
   const v = parseFloat(str.trim().replace(/[\s ]/g, '').replace(',', '.'));
   return isNaN(v) || v < 0 ? 0 : v;
 }
@@ -256,34 +257,44 @@ function parseAmount(str) {
 function parseSalaries(text) {
   const t = text.replace(/\s+/g, ' ');
   let salaire_brut = 0;
-  let salaire_net = 0;
+  let salaire_net  = 0;
+
+  // AMT matches either a French space-separated integer ("617 524") or a
+  // plain integer 4-10 digits ("376132"). [^\d]+ before AMT skips any
+  // non-digit junk between label and amount (underscores, asterisks, etc.).
+  const AMT = '(\\d{1,3}(?:[\\s ]\\d{3})+|\\d{4,10})';
 
   const brutPatterns = [
-    /[Bb]rut\s+[Ii]mposable\s+([\d][\d\s,]*)/,
-    /[Ss]alaire\s+[Bb]rut\s+([\d][\d\s,]*)/,
-    /[Tt]otal\s+[Bb]rut\s+([\d][\d\s,]*)/,
-    /[Tt]raitement\s+[Bb]rut\s+([\d][\d\s,]*)/,
-    /[Mm]ontant\s+[Bb]rut\s+([\d][\d\s,]*)/,
+    new RegExp('Total\\s+Brut[^\\d]+' + AMT, 'i'),
+    new RegExp('Traitement\\s+Brut[^\\d]+' + AMT, 'i'),
+    new RegExp('Montant\\s+Brut[^\\d]+' + AMT, 'i'),
+    new RegExp('Salaire\\s+Brut[^\\d]+' + AMT, 'i'),
+    new RegExp('Brut\\s+Imposable[^\\d]+' + AMT, 'i'),
   ];
   for (const p of brutPatterns) {
     const m = t.match(p);
-    if (m) { salaire_brut = parseAmount(m[1]); break; }
+    if (m) {
+      const val = parseAmount(m[1]);
+      if (val > 10000) { salaire_brut = val; break; }
+    }
   }
 
   const netPatterns = [
-    /[Nn]et\s+[àa]\s+[Pp]ayer\s+([\d][\d\s,]*)/,
-    /[Nn]et\s+[Pp]ay[ée]\s+([\d][\d\s,]*)/,
-    /[Nn]et\s+[Ff]iscal\s+([\d][\d\s,]*)/,
-    /[Mm]ontant\s+[Nn]et\s+([\d][\d\s,]*)/,
+    new RegExp('Net\\s+[\xc3\xa0a]\\s+[Pp]ayer[^\\d]+' + AMT, 'i'),
+    new RegExp('Net\\s+Pay[e\xc3\xa9][^\\d]+' + AMT, 'i'),
+    new RegExp('Net\\s+Fiscal[^\\d]+' + AMT, 'i'),
+    new RegExp('Montant\\s+Net[^\\d]+' + AMT, 'i'),
   ];
   for (const p of netPatterns) {
     const m = t.match(p);
-    if (m) { salaire_net = parseAmount(m[1]); break; }
+    if (m) {
+      const val = parseAmount(m[1]);
+      if (val > 10000) { salaire_net = val; break; }
+    }
   }
 
   return { salaire_brut, salaire_net };
 }
-
 function parseBulletinPage(text) {
   const t = text.replace(/\s+/g, ' ');
 
@@ -303,6 +314,26 @@ function parseBulletinPage(text) {
   const mois      = MONTH_MAP[monthNum] || monthNum;
 
   return { matricule, monthNum, year, mois };
+}
+
+function parseEmployeeName(text) {
+  const t = text.replace(/\s+/g, ' ');
+  // Name follows a civility prefix (M, Mme) and precedes a geographic
+  // or section landmark present in both generated and real CROUS bulletins.
+  const m = t.match(/\bM(?:me?)?\.?\s+(.+?)(?=\s+(?:SAINT[\s\-]LOUIS|Cong[eé]s|Conv\.\s*coll))/i);
+  if (!m) return null;
+  const full  = m[1].trim();
+  const words = full.split(' ');
+  // Leading all-uppercase tokens (incl. accented caps A-Z, À-Ö, Ø-Þ) = nom;
+  // first mixed-case token onward = prenom
+  let split = 0;
+  for (const w of words) {
+    if (/^[A-Z\u00C0-\u00D6\u00D8-\u00DE\-]+$/.test(w)) split++;
+    else break;
+  }
+  if (split === 0)           return { nom: words[0] || full, prenom: words.slice(1).join(' ') || 'À renseigner' };
+  if (split >= words.length) return { nom: full,             prenom: 'À renseigner' };
+  return { nom: words.slice(0, split).join(' '), prenom: words.slice(split).join(' ') };
 }
 
 async function stampPage(pdfDoc, emp, info) {
@@ -327,6 +358,7 @@ exports.syncBulletinPDF = async (req, res, next) => {
     progress: 0,
     total: 0,
     saved: 0,
+    created: 0,
     errors: [],
     startedAt: new Date().toISOString(),
     doneAt: null,
@@ -422,11 +454,35 @@ async function processBulletinAsync(filePath, jobId) {
       );
       empCache.set(info.matricule, rows[0] || null);
     }
-    const emp = empCache.get(info.matricule);
+    let emp = empCache.get(info.matricule);
 
     if (!emp) {
-      job.errors.push(`Page ${i + 1} : employé ${info.matricule} introuvable en base — bulletin ignoré`);
-      continue;
+      // Auto-create the employee from data extracted from this page
+      const nameInfo = parseEmployeeName(pageText);
+      const nom    = nameInfo?.nom    || `EMPLOYE_${info.matricule}`;
+      const prenom = nameInfo?.prenom || 'À renseigner';
+      const deptM  = pageText.replace(/\s+/g, ' ').match(/D[eé]partement\s+(.+?)(?=\s+Cat[ée]gorie)/i);
+      const service = deptM ? deptM[1].trim() : 'Non défini';
+      const pin    = generatePin();
+      try {
+        await pool.query(
+          `INSERT INTO employees (matricule, nom, prenom, service, pin, is_admin, is_active, first_login)
+           VALUES ($1, $2, $3, $4, $5, 0, 0, 1)
+           ON CONFLICT (matricule) DO NOTHING`,
+          [info.matricule, nom, prenom, service, pin]
+        );
+        // Fetch the actual row (handles rare concurrent-insert race)
+        const { rows: empRows } = await pool.query(
+          'SELECT nom, prenom FROM employees WHERE matricule=$1', [info.matricule]
+        );
+        emp = empRows[0] || { nom, prenom };
+        empCache.set(info.matricule, emp);
+        job.created++;
+        job.errors.push(`[Employé créé] ${info.matricule} — ${nom} ${prenom} | PIN initial : ${pin}`);
+      } catch (e) {
+        job.errors.push(`Page ${i + 1}�: impossible de créer l'employé ${info.matricule} — ${e.message}`);
+        continue;
+      }
     }
 
     // Extract page, stamp, write to disk
