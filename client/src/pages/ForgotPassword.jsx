@@ -3,28 +3,18 @@ import { Link as RouterLink } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import api from "../services/api";
 import {
-  Box,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Typography,
-  Alert,
-  InputAdornment,
-  CircularProgress,
+  Box, TextField, Button, Typography, Alert,
+  InputAdornment, CircularProgress,
 } from "@mui/material";
 import { BadgeOutlined, EmailOutlined, ArrowBackOutlined } from "@mui/icons-material";
 
+const DIAMOND_BG = `url("data:image/svg+xml,%3Csvg width='44' height='44' viewBox='0 0 44 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M22 2 L42 22 L22 42 L2 22 Z' fill='none' stroke='%23fff' stroke-opacity='0.06' stroke-width='1'/%3E%3C/svg%3E")`;
+
 export default function ForgotPassword() {
-  const [status, setStatus] = useState(null); // null | 'success' | 'error'
+  const [status, setStatus] = useState(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm();
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   const onSubmit = async ({ matricule, email }) => {
     setStatus(null);
@@ -42,129 +32,107 @@ export default function ForgotPassword() {
   };
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background:
-          "linear-gradient(135deg, #5C2D00 0%, #7D3C00 50%, #A85C26 100%)",
-        p: 2,
-      }}
-    >
-      <Box sx={{ width: "100%", maxWidth: 420 }}>
-        <Box sx={{ textAlign: "center", mb: 4 }}>
-          <Box
-            sx={{
-              width: 120,
-              height: 120,
-              borderRadius: "50%",
-              mx: "auto",
-              mb: 2,
-              bgcolor: "#fff",
-              border: "3px solid #A85C26",
-              overflow: "hidden",
-            }}
-          >
-            <Box
-              component="img"
-              src="/logo.png"
-              alt="CROUS Logo"
-              sx={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
-            />
-          </Box>
-          <Typography variant="h5" sx={{ color: "#fff", fontWeight: 700 }}>
-            Portail RH
-          </Typography>
-          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.65)", mt: 0.5 }}>
-            UGB-CROUS-SL
-          </Typography>
+    <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: { xs: "column", md: "row" } }}>
+      {/* Left branding panel */}
+      <Box sx={{
+        width: { xs: "100%", md: "38%" },
+        minHeight: { xs: 200, md: "100vh" },
+        bgcolor: "#3D1A00",
+        backgroundImage: DIAMOND_BG,
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        p: { xs: 3, md: 6 },
+        position: { md: "sticky" }, top: 0, maxHeight: { md: "100vh" },
+      }}>
+        <Box sx={{
+          width: { xs: 72, md: 100 }, height: { xs: 72, md: 100 },
+          borderRadius: "50%", bgcolor: "rgba(255,255,255,0.1)",
+          overflow: "hidden", mb: { xs: 2, md: 3 }, flexShrink: 0,
+        }}>
+          <Box component="img" src="/logo.png" alt="CROUS"
+            sx={{ width: "100%", height: "100%", objectFit: "contain", p: 1, display: "block" }} />
         </Box>
 
-        <Card>
-          <CardContent sx={{ p: 4 }}>
-            <Typography variant="h6" sx={{ mb: 0.5 }}>
-              Mot de passe oublié
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Entrez votre matricule et votre adresse email. Un code PIN temporaire vous sera envoyé.
-            </Typography>
+        <Typography sx={{
+          color: "#fff", fontWeight: 700,
+          fontSize: { xs: 22, md: 28 },
+          fontFamily: "'Playfair Display', serif",
+          textAlign: "center", lineHeight: 1.2, mb: 1,
+        }}>
+          Portail RH
+        </Typography>
 
-            {status === "success" && (
-              <Alert severity="success" sx={{ mb: 2 }}>
-                {message}
-              </Alert>
-            )}
-            {status === "error" && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {message}
-              </Alert>
-            )}
+        <Typography sx={{
+          color: "rgba(255,255,255,0.4)", fontSize: 11,
+          letterSpacing: 2.5, textTransform: "uppercase", textAlign: "center",
+        }}>
+          UGB — CROUS — Sénégal
+        </Typography>
 
-            {status !== "success" && (
-              <Box component="form" onSubmit={handleSubmit(onSubmit)}>
-                <TextField
-                  fullWidth
-                  label="Matricule"
-                  placeholder="Ex: EMP001"
-                  sx={{ mb: 2 }}
-                  {...register("matricule", { required: "Matricule requis" })}
-                  error={!!errors.matricule}
-                  helperText={errors.matricule?.message}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <BadgeOutlined sx={{ color: "text.secondary" }} />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <TextField
-                  fullWidth
-                  label="Adresse email"
-                  placeholder="votre@email.com"
-                  type="email"
-                  sx={{ mb: 3 }}
-                  {...register("email", {
-                    required: "Email requis",
-                    pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Email invalide" },
-                  })}
-                  error={!!errors.email}
-                  helperText={errors.email?.message}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <EmailOutlined sx={{ color: "text.secondary" }} />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <Button
-                  type="submit"
-                  variant="contained"
-                  fullWidth
-                  size="large"
-                  disabled={loading}
-                >
-                  {loading ? <CircularProgress size={22} color="inherit" /> : "Envoyer le code PIN"}
-                </Button>
-              </Box>
-            )}
+        <Box sx={{ mt: 5, maxWidth: 240, display: { xs: "none", md: "block" } }}>
+          <Typography sx={{
+            color: "rgba(255,255,255,0.28)", fontSize: 13,
+            textAlign: "center", lineHeight: 2,
+          }}>
+            Un code PIN temporaire vous sera envoyé à l'adresse email associée à votre compte.
+          </Typography>
+        </Box>
+      </Box>
 
+      {/* Right form panel */}
+      <Box sx={{
+        flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+        bgcolor: "background.default", p: { xs: 2, sm: 4, md: 7 },
+      }}>
+        <Box sx={{ width: "100%", maxWidth: 400 }}>
+          <Typography variant="h5" sx={{ mb: 0.75 }}>Mot de passe oublié</Typography>
+          <Typography color="text.secondary" sx={{ mb: 4, fontSize: 14, lineHeight: 1.7 }}>
+            Entrez votre matricule et votre adresse email pour recevoir un code PIN temporaire.
+          </Typography>
+
+          {status === "success" && <Alert severity="success" sx={{ mb: 3 }}>{message}</Alert>}
+          {status === "error" && <Alert severity="error" sx={{ mb: 3 }}>{message}</Alert>}
+
+          {status !== "success" && (
+            <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <TextField
+                fullWidth label="Matricule" placeholder="EMP001"
+                {...register("matricule", { required: "Matricule requis" })}
+                error={!!errors.matricule} helperText={errors.matricule?.message}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">
+                    <BadgeOutlined sx={{ color: "text.secondary", fontSize: 20 }} />
+                  </InputAdornment>,
+                }}
+              />
+              <TextField
+                fullWidth label="Adresse email" placeholder="votre@email.com" type="email"
+                {...register("email", {
+                  required: "Email requis",
+                  pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Email invalide" },
+                })}
+                error={!!errors.email} helperText={errors.email?.message}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">
+                    <EmailOutlined sx={{ color: "text.secondary", fontSize: 20 }} />
+                  </InputAdornment>,
+                }}
+              />
+              <Button type="submit" variant="contained" fullWidth size="large" disabled={loading}>
+                {loading ? <CircularProgress size={22} color="inherit" /> : "Envoyer le code PIN"}
+              </Button>
+            </Box>
+          )}
+
+          <Box sx={{ mt: 2 }}>
             <Button
-              component={RouterLink}
-              to="/login"
-              variant="text"
-              fullWidth
-              size="large"
-              startIcon={<ArrowBackOutlined />}
-              sx={{ mt: 2 }}
+              component={RouterLink} to="/login"
+              variant="text" fullWidth startIcon={<ArrowBackOutlined />}
             >
               Retour à la connexion
             </Button>
-          </CardContent>
-        </Card>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );

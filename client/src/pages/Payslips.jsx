@@ -38,7 +38,7 @@ function PayslipRow({ p, onDownload, downloading, onPreview, previewing }) {
           <Typography fontWeight={500}>{fmt(p.salaire_brut)}</Typography>
         </TableCell>
         <TableCell>
-          <Typography fontWeight={700} color="success.main">{fmt(p.salaire_net)}</Typography>
+          <Typography fontWeight={700} color="success.main" sx={{ fontFamily: "'Playfair Display', serif" }}>{fmt(p.salaire_net)}</Typography>
         </TableCell>
         <TableCell>
           <Chip label={`-${pct}%`} size="small" color="warning" variant="outlined" />
@@ -75,11 +75,12 @@ function PayslipRow({ p, onDownload, downloading, onPreview, previewing }) {
                   { label: 'CNSS (5.7%)', value: `− ${fmt(p.salaire_brut * 0.057)}`, color: 'error.main' },
                   { label: 'IPRES (5.6%)', value: `− ${fmt(p.salaire_brut * 0.056)}`, color: 'error.main' },
                   { label: 'Autres retenues', value: `− ${fmt(p.salaire_brut - p.salaire_net - p.salaire_brut * 0.113)}`, color: 'error.main' },
-                  { label: 'Net à payer', value: fmt(p.salaire_net), color: 'success.main' },
+                  { label: 'Net à payer', value: fmt(p.salaire_net), color: 'success.main', serif: true },
                 ].map(item => (
                   <Grid item xs={6} sm={4} key={item.label}>
                     <Typography variant="caption" color="text.secondary">{item.label}</Typography>
-                    <Typography fontWeight={600} color={item.color} fontSize={14}>{item.value}</Typography>
+                    <Typography fontWeight={600} color={item.color} fontSize={14}
+                      sx={{ fontFamily: item.serif ? "'Playfair Display', serif" : undefined }}>{item.value}</Typography>
                   </Grid>
                 ))}
               </Grid>
@@ -261,12 +262,15 @@ export default function Payslips() {
       <TableContainer component={Paper} sx={{ borderRadius: 3, boxShadow: '0 2px 20px rgba(0,0,0,0.08)' }}>
         <Table>
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.50' }}>
-              <TableCell><Typography fontWeight={600} fontSize={13}>PÉRIODE</Typography></TableCell>
-              <TableCell><Typography fontWeight={600} fontSize={13}>BRUT</Typography></TableCell>
-              <TableCell><Typography fontWeight={600} fontSize={13}>NET</Typography></TableCell>
-              <TableCell><Typography fontWeight={600} fontSize={13}>RETENUES</Typography></TableCell>
-              <TableCell align="right"><Typography fontWeight={600} fontSize={13}>ACTIONS</Typography></TableCell>
+            <TableRow sx={{ bgcolor: '#F5EDE3' }}>
+              {['Période', 'Brut', 'Net', 'Retenues'].map(h => (
+                <TableCell key={h}>
+                  <Typography fontWeight={700} fontSize={10} sx={{ letterSpacing: 1.2, textTransform: 'uppercase', color: 'text.secondary' }}>{h}</Typography>
+                </TableCell>
+              ))}
+              <TableCell align="right">
+                <Typography fontWeight={700} fontSize={10} sx={{ letterSpacing: 1.2, textTransform: 'uppercase', color: 'text.secondary' }}>Actions</Typography>
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

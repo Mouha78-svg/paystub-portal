@@ -68,10 +68,10 @@ export default function Layout() {
   });
 
   const DrawerContent = () => (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #7D3C00 0%, #5C2D00 100%)' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'linear-gradient(180deg, #3D1A00 0%, #5C2D00 100%)' }}>
       <Box sx={{ pt: 3, pb: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-        <Box sx={{ width: 90, height: 90, borderRadius: '50%', flexShrink: 0, bgcolor: '#fff', border: '2.5px solid #A85C26', overflow: 'hidden' }}>
-          <Box component="img" src="/logo.png" alt="CROUS" sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+        <Box sx={{ width: 88, height: 88, borderRadius: '50%', flexShrink: 0, bgcolor: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+          <Box component="img" src="/logo.png" alt="CROUS" sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', p: 0.5 }} />
         </Box>
         <Box sx={{ textAlign: 'center' }}>
           <Typography sx={{ color: '#fff', fontWeight: 700, fontSize: 16, lineHeight: 1.2 }}>Portail RH</Typography>
@@ -111,17 +111,16 @@ export default function Layout() {
                 onClick={() => { navigate(item.path); if (isMobile) setMobileOpen(false); }}
                 sx={{
                   borderRadius: 2, py: 1.2,
-                  background: active ? 'rgba(255,255,255,0.15)' : 'transparent',
-                  '&:hover': { background: 'rgba(255,255,255,0.1)' },
-                  borderLeft: active ? '3px solid #fff' : '3px solid transparent',
+                  background: active ? 'rgba(255,255,255,0.14)' : 'transparent',
+                  '&:hover': { background: active ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.07)' },
                 }}
               >
-                <ListItemIcon sx={{ color: active ? '#fff' : 'rgba(255,255,255,0.55)', minWidth: 38 }}>
+                <ListItemIcon sx={{ color: active ? '#C68B2E' : 'rgba(255,255,255,0.5)', minWidth: 38 }}>
                   {item.icon}
                 </ListItemIcon>
                 <ListItemText primary={item.label} primaryTypographyProps={{
                   fontSize: 14, fontWeight: active ? 600 : 400,
-                  color: active ? '#fff' : 'rgba(255,255,255,0.7)'
+                  color: active ? '#fff' : 'rgba(255,255,255,0.65)'
                 }} />
                 {badge !== null && (
                   <Chip
@@ -129,12 +128,11 @@ export default function Layout() {
                     size="small"
                     sx={{
                       height: 18, fontSize: 10, fontWeight: 700, mr: 0.5,
-                      bgcolor: item.path === '/admin/users' ? 'rgba(255,255,255,0.2)' : '#C68B2E',
+                      bgcolor: item.path === '/admin/users' ? 'rgba(255,255,255,0.15)' : '#C68B2E',
                       color: '#fff',
                     }}
                   />
                 )}
-                {active && <ChevronLeft sx={{ color: 'rgba(255,255,255,0.5)', transform: 'rotate(180deg)', fontSize: 18 }} />}
               </ListItemButton>
             </ListItem>
           );

@@ -4,11 +4,12 @@ import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import {
-  Box, Card, CardContent, TextField, Button, Typography,
-  Alert, Stepper, Step, StepLabel, InputAdornment, IconButton,
-  CircularProgress, LinearProgress
+  Box, TextField, Button, Typography, Alert,
+  InputAdornment, IconButton, CircularProgress, LinearProgress,
 } from '@mui/material';
-import { Visibility, VisibilityOff, LockResetOutlined, CheckCircleOutline } from '@mui/icons-material';
+import { Visibility, VisibilityOff, CheckCircleOutline } from '@mui/icons-material';
+
+const DIAMOND_BG = `url("data:image/svg+xml,%3Csvg width='44' height='44' viewBox='0 0 44 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M22 2 L42 22 L22 42 L2 22 Z' fill='none' stroke='%23fff' stroke-opacity='0.06' stroke-width='1'/%3E%3C/svg%3E")`;
 
 function passwordStrength(pwd) {
   let score = 0;
@@ -26,13 +27,13 @@ export default function FirstLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const { state } = useLocation();
-  const [step, setStep] = useState(0);
+  const [done, setDone] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [watchPwd, setWatchPwd] = useState('');
-  const { register, handleSubmit, watch, formState: { errors } } = useForm();
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   if (!state?.matricule) {
     navigate('/login');
@@ -48,10 +49,10 @@ export default function FirstLogin() {
     setLoading(true);
     try {
       const { data } = await api.post('/auth/change-password', {
-        matricule: state.matricule, pin, new_password
+        matricule: state.matricule, pin, new_password,
       });
       login(data.token, data.employee);
-      setStep(2);
+      setDone(true);
       setTimeout(() => navigate('/dashboard'), 1500);
     } catch (err) {
       setError(err.response?.data?.message || 'Erreur lors de la création du mot de passe');
@@ -63,96 +64,139 @@ export default function FirstLogin() {
   const strength = passwordStrength(watchPwd);
 
   return (
-    <Box sx={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'linear-gradient(135deg, #5C2D00 0%, #7D3C00 50%, #A85C26 100%)', p: 2
-    }}>
-      <Box sx={{ width: '100%', maxWidth: 460 }}>
-        <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Box sx={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 64, height: 64, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', mb: 2 }}>
-            <LockResetOutlined sx={{ color: '#fff', fontSize: 32 }} />
-          </Box>
-          <Typography variant="h5" sx={{ color: '#fff', fontWeight: 700 }}>Première connexion</Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.65)', mt: 0.5 }}>
-            Matricule: <strong style={{ color: '#fff' }}>{state.matricule}</strong>
-          </Typography>
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+      {/* Left branding panel */}
+      <Box sx={{
+        width: { xs: '100%', md: '38%' },
+        minHeight: { xs: 200, md: '100vh' },
+        bgcolor: '#3D1A00',
+        backgroundImage: DIAMOND_BG,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        p: { xs: 3, md: 6 },
+        position: { md: 'sticky' }, top: 0, maxHeight: { md: '100vh' },
+      }}>
+        <Box sx={{
+          width: { xs: 72, md: 100 }, height: { xs: 72, md: 100 },
+          borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.1)',
+          overflow: 'hidden', mb: { xs: 2, md: 3 }, flexShrink: 0,
+        }}>
+          <Box component="img" src="/logo.png" alt="CROUS"
+            sx={{ width: '100%', height: '100%', objectFit: 'contain', p: 1, display: 'block' }} />
         </Box>
 
-        <Card>
-          <CardContent sx={{ p: 4 }}>
-            <Stepper activeStep={step} sx={{ mb: 3 }}>
-              <Step><StepLabel>Vérification PIN</StepLabel></Step>
-              <Step><StepLabel>Nouveau mot de passe</StepLabel></Step>
-              <Step><StepLabel>Terminé</StepLabel></Step>
-            </Stepper>
+        <Typography sx={{
+          color: '#fff', fontWeight: 700,
+          fontSize: { xs: 22, md: 28 },
+          fontFamily: "'Playfair Display', serif",
+          textAlign: 'center', lineHeight: 1.2, mb: 1,
+        }}>
+          Portail RH
+        </Typography>
 
-            {step === 2 ? (
-              <Box sx={{ textAlign: 'center', py: 3 }}>
-                <CheckCircleOutline sx={{ fontSize: 60, color: 'success.main', mb: 2 }} />
-                <Typography variant="h6">Compte activé !</Typography>
-                <Typography variant="body2" color="text.secondary">Redirection vers le tableau de bord…</Typography>
-                <CircularProgress size={24} sx={{ mt: 2 }} />
-              </Box>
-            ) : (
-              <>
-                {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-                <Box component="form" onSubmit={handleSubmit(onSubmit)}>
-                  <Alert severity="info" sx={{ mb: 3, fontSize: 13 }}>
-                    Saisissez le <strong>code PIN</strong> fourni par votre administration, puis créez votre mot de passe personnel.
-                  </Alert>
+        <Typography sx={{
+          color: 'rgba(255,255,255,0.4)', fontSize: 11,
+          letterSpacing: 2.5, textTransform: 'uppercase', textAlign: 'center',
+        }}>
+          UGB — CROUS — Sénégal
+        </Typography>
 
-                  <TextField fullWidth label="Code PIN administratif" sx={{ mb: 2 }}
-                    type="password" placeholder="Code PIN reçu des RH"
-                    {...register('pin', { required: 'Code PIN requis' })}
-                    error={!!errors.pin} helperText={errors.pin?.message}
-                  />
+        <Box sx={{ mt: 5, maxWidth: 240, display: { xs: 'none', md: 'block' } }}>
+          <Typography sx={{
+            color: 'rgba(255,255,255,0.28)', fontSize: 13,
+            textAlign: 'center', lineHeight: 2,
+          }}>
+            Choisissez un mot de passe personnel pour sécuriser votre compte.
+          </Typography>
+        </Box>
+      </Box>
 
-                  <TextField fullWidth label="Nouveau mot de passe" sx={{ mb: 1 }}
+      {/* Right form panel */}
+      <Box sx={{
+        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        bgcolor: 'background.default', p: { xs: 2, sm: 4, md: 7 },
+      }}>
+        <Box sx={{ width: '100%', maxWidth: 420 }}>
+          {done ? (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <CheckCircleOutline sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
+              <Typography variant="h5" sx={{ mb: 1 }}>Compte activé !</Typography>
+              <Typography color="text.secondary" sx={{ mb: 2 }}>
+                Redirection vers le tableau de bord…
+              </Typography>
+              <CircularProgress size={24} />
+            </Box>
+          ) : (
+            <>
+              <Typography variant="h5" sx={{ mb: 0.75 }}>Première connexion</Typography>
+              <Typography color="text.secondary" sx={{ mb: 1, fontSize: 14, lineHeight: 1.7 }}>
+                Matricule : <strong style={{ color: '#2C1A0E' }}>{state.matricule}</strong>
+              </Typography>
+              <Typography color="text.secondary" sx={{ mb: 4, fontSize: 14, lineHeight: 1.7 }}>
+                Saisissez le code PIN reçu de l'administration, puis choisissez votre mot de passe personnel.
+              </Typography>
+
+              {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+
+              <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField
+                  fullWidth label="Code PIN administratif" type="password"
+                  placeholder="Code PIN reçu des RH"
+                  {...register('pin', { required: 'Code PIN requis' })}
+                  error={!!errors.pin} helperText={errors.pin?.message}
+                />
+
+                <Box>
+                  <TextField
+                    fullWidth label="Nouveau mot de passe"
                     type={showPwd ? 'text' : 'password'}
                     {...register('new_password', {
                       required: 'Mot de passe requis',
                       minLength: { value: 8, message: 'Au moins 8 caractères requis' },
-                      onChange: (e) => setWatchPwd(e.target.value)
+                      onChange: e => setWatchPwd(e.target.value),
                     })}
                     error={!!errors.new_password} helperText={errors.new_password?.message}
                     InputProps={{
                       endAdornment: <InputAdornment position="end">
-                        <IconButton onClick={() => setShowPwd(!showPwd)}>{showPwd ? <VisibilityOff /> : <Visibility />}</IconButton>
-                      </InputAdornment>
+                        <IconButton onClick={() => setShowPwd(!showPwd)}>
+                          {showPwd ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>,
                     }}
                   />
-
                   {watchPwd && (
-                    <Box sx={{ mb: 2 }}>
+                    <Box sx={{ mt: 1 }}>
                       <LinearProgress variant="determinate" value={(strength / 4) * 100}
-                        sx={{ height: 6, borderRadius: 3, backgroundColor: '#eee',
-                          '& .MuiLinearProgress-bar': { backgroundColor: STRENGTH_COLORS[strength] } }} />
+                        sx={{ height: 5, borderRadius: 3, bgcolor: '#EDE3D6',
+                          '& .MuiLinearProgress-bar': { bgcolor: STRENGTH_COLORS[strength] } }} />
                       <Typography variant="caption" sx={{ color: STRENGTH_COLORS[strength], fontWeight: 500 }}>
                         {STRENGTH_LABELS[strength]}
                       </Typography>
                     </Box>
                   )}
-
-                  <TextField fullWidth label="Confirmer le mot de passe" sx={{ mb: 3 }}
-                    type={showConfirm ? 'text' : 'password'}
-                    {...register('confirm_password', { required: 'Confirmation requise' })}
-                    error={!!errors.confirm_password} helperText={errors.confirm_password?.message}
-                    InputProps={{
-                      endAdornment: <InputAdornment position="end">
-                        <IconButton onClick={() => setShowConfirm(!showConfirm)}>{showConfirm ? <VisibilityOff /> : <Visibility />}</IconButton>
-                      </InputAdornment>
-                    }}
-                  />
-
-                  <Button type="submit" variant="contained" fullWidth size="large" disabled={loading}>
-                    {loading ? <CircularProgress size={22} color="inherit" /> : 'Activer mon compte'}
-                  </Button>
                 </Box>
-              </>
-            )}
-          </CardContent>
-        </Card>
+
+                <TextField
+                  fullWidth label="Confirmer le mot de passe"
+                  type={showConfirm ? 'text' : 'password'}
+                  {...register('confirm_password', { required: 'Confirmation requise' })}
+                  error={!!errors.confirm_password} helperText={errors.confirm_password?.message}
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">
+                      <IconButton onClick={() => setShowConfirm(!showConfirm)}>
+                        {showConfirm ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>,
+                  }}
+                />
+
+                <Button type="submit" variant="contained" fullWidth size="large" disabled={loading}>
+                  {loading ? <CircularProgress size={22} color="inherit" /> : 'Activer mon compte'}
+                </Button>
+              </Box>
+            </>
+          )}
+        </Box>
       </Box>
     </Box>
   );

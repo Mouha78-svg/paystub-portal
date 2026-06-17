@@ -4,26 +4,15 @@ import { useForm } from "react-hook-form";
 import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
 import {
-  Box,
-  Card,
-  CardContent,
-  TextField,
-  Button,
-  Typography,
-  Alert,
-  InputAdornment,
-  IconButton,
-  CircularProgress,
-  Link,
+  Box, TextField, Button, Typography, Alert,
+  InputAdornment, IconButton, CircularProgress,
 } from "@mui/material";
 import {
-  Visibility,
-  VisibilityOff,
-  BadgeOutlined,
-  LockOutlined,
-  PersonAddOutlined,
-  LockResetOutlined,
+  Visibility, VisibilityOff, BadgeOutlined, LockOutlined,
+  PersonAddOutlined, LockResetOutlined,
 } from "@mui/icons-material";
+
+const DIAMOND_BG = `url("data:image/svg+xml,%3Csvg width='44' height='44' viewBox='0 0 44 44' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M22 2 L42 22 L22 42 L2 22 Z' fill='none' stroke='%23fff' stroke-opacity='0.06' stroke-width='1'/%3E%3C/svg%3E")`;
 
 export default function Login() {
   const { login } = useAuth();
@@ -31,11 +20,7 @@ export default function Login() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm();
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   const onSubmit = async ({ matricule, password }) => {
     setError("");
@@ -49,161 +34,122 @@ export default function Login() {
         navigate("/dashboard");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Erreur de connexion");
+      setError(err.response?.data?.message || "Identifiants incorrects");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background:
-          "linear-gradient(135deg, #5C2D00 0%, #7D3C00 50%, #A85C26 100%)",
-        p: 2,
-      }}
-    >
-      <Box sx={{ width: "100%", maxWidth: 420 }}>
-        {/* Logo */}
-        <Box sx={{ textAlign: "center", mb: 4 }}>
-          <Box
-            sx={{
-              width: 120,
-              height: 120,
-              borderRadius: "50%",
-              mx: "auto",
-              mb: 2,
-              bgcolor: "#fff",
-              border: "3px solid #A85C26",
-              overflow: "hidden",
-            }}
-          >
-            <Box
-              component="img"
-              src="/logo.png"
-              alt="CROUS Logo"
-              sx={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                display: "block",
-              }}
-            />
-          </Box>
-          <Typography variant="h5" sx={{ color: "#fff", fontWeight: 700 }}>
-            Portail RH
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{ color: "rgba(255,255,255,0.65)", mt: 0.5 }}
-          >
-            UGB-CROUS-SL
-          </Typography>
+    <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: { xs: "column", md: "row" } }}>
+      {/* Left branding panel */}
+      <Box sx={{
+        width: { xs: "100%", md: "38%" },
+        minHeight: { xs: 200, md: "100vh" },
+        bgcolor: "#3D1A00",
+        backgroundImage: DIAMOND_BG,
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        p: { xs: 3, md: 6 },
+        position: { md: "sticky" }, top: 0, maxHeight: { md: "100vh" },
+      }}>
+        <Box sx={{
+          width: { xs: 72, md: 100 }, height: { xs: 72, md: 100 },
+          borderRadius: "50%", bgcolor: "rgba(255,255,255,0.1)",
+          overflow: "hidden", mb: { xs: 2, md: 3 }, flexShrink: 0,
+        }}>
+          <Box component="img" src="/logo.png" alt="CROUS"
+            sx={{ width: "100%", height: "100%", objectFit: "contain", p: 1, display: "block" }} />
         </Box>
 
-        <Card>
-          <CardContent sx={{ p: 4 }}>
-            <Typography variant="h6" sx={{ mb: 0.5 }}>
-              Connexion
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Accédez à vos bulletins de salaire
-            </Typography>
+        <Typography sx={{
+          color: "#fff", fontWeight: 700,
+          fontSize: { xs: 22, md: 28 },
+          fontFamily: "'Playfair Display', serif",
+          textAlign: "center", lineHeight: 1.2, mb: 1,
+        }}>
+          Portail RH
+        </Typography>
 
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-              </Alert>
-            )}
+        <Typography sx={{
+          color: "rgba(255,255,255,0.4)", fontSize: 11,
+          letterSpacing: 2.5, textTransform: "uppercase", textAlign: "center",
+        }}>
+          UGB — CROUS — Sénégal
+        </Typography>
 
-            <Box component="form" onSubmit={handleSubmit(onSubmit)}>
-              <TextField
-                fullWidth
-                label="Matricule"
-                placeholder="Ex: EMP001"
-                sx={{ mb: 2 }}
-                {...register("matricule", { required: "Matricule requis" })}
-                error={!!errors.matricule}
-                helperText={errors.matricule?.message}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <BadgeOutlined sx={{ color: "text.secondary" }} />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <TextField
-                fullWidth
-                label="Mot de passe / Code PIN"
-                sx={{ mb: 3 }}
-                type={showPwd ? "text" : "password"}
-                {...register("password", { required: "Mot de passe requis" })}
-                error={!!errors.password}
-                helperText={errors.password?.message}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockOutlined sx={{ color: "text.secondary" }} />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setShowPwd(!showPwd)}
-                        edge="end"
-                      >
-                        {showPwd ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <Button
-                type="submit"
-                variant="contained"
-                fullWidth
-                size="large"
-                disabled={loading}
-              >
-                {loading ? (
-                  <CircularProgress size={22} color="inherit" />
-                ) : (
-                  "Se connecter"
-                )}
-              </Button>
+        <Box sx={{ mt: 5, maxWidth: 240, display: { xs: "none", md: "block" } }}>
+          <Typography sx={{
+            color: "rgba(255,255,255,0.28)", fontSize: 13,
+            textAlign: "center", lineHeight: 2,
+          }}>
+            Consultez et téléchargez vos bulletins de salaire en toute sécurité.
+          </Typography>
+        </Box>
+      </Box>
 
-              <Button
-                component={RouterLink}
-                to="/register"
-                variant="outlined"
-                fullWidth
-                size="large"
-                startIcon={<PersonAddOutlined />}
-                sx={{ mt: 1.5 }}
-              >
-                Créer un compte
-              </Button>
+      {/* Right form panel */}
+      <Box sx={{
+        flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+        bgcolor: "background.default", p: { xs: 2, sm: 4, md: 7 },
+      }}>
+        <Box sx={{ width: "100%", maxWidth: 400 }}>
+          <Typography variant="h5" sx={{ mb: 0.75 }}>Connexion</Typography>
+          <Typography color="text.secondary" sx={{ mb: 4, fontSize: 14, lineHeight: 1.7 }}>
+            Saisissez vos identifiants pour accéder à votre espace
+          </Typography>
 
-              <Button
-                component={RouterLink}
-                to="/forgot-password"
-                variant="text"
-                fullWidth
-                size="large"
-                startIcon={<LockResetOutlined />}
-                sx={{ mt: 1 }}
-              >
-                Mot de passe oublié ?
-              </Button>
-            </Box>
+          {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
-          </CardContent>
-        </Card>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <TextField
+              fullWidth label="Matricule" placeholder="EMP001"
+              {...register("matricule", { required: "Matricule requis" })}
+              error={!!errors.matricule} helperText={errors.matricule?.message}
+              InputProps={{
+                startAdornment: <InputAdornment position="start">
+                  <BadgeOutlined sx={{ color: "text.secondary", fontSize: 20 }} />
+                </InputAdornment>,
+              }}
+            />
+            <TextField
+              fullWidth label="Mot de passe / Code PIN"
+              type={showPwd ? "text" : "password"}
+              {...register("password", { required: "Mot de passe requis" })}
+              error={!!errors.password} helperText={errors.password?.message}
+              InputProps={{
+                startAdornment: <InputAdornment position="start">
+                  <LockOutlined sx={{ color: "text.secondary", fontSize: 20 }} />
+                </InputAdornment>,
+                endAdornment: <InputAdornment position="end">
+                  <IconButton onClick={() => setShowPwd(!showPwd)} edge="end">
+                    {showPwd ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>,
+              }}
+            />
+            <Button type="submit" variant="contained" fullWidth size="large" disabled={loading}>
+              {loading ? <CircularProgress size={22} color="inherit" /> : "Se connecter"}
+            </Button>
+          </Box>
+
+          <Box sx={{ mt: 2.5, display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <Button
+              component={RouterLink} to="/register"
+              variant="outlined" fullWidth size="large"
+              startIcon={<PersonAddOutlined />}
+            >
+              Créer un compte
+            </Button>
+            <Button
+              component={RouterLink} to="/forgot-password"
+              variant="text" fullWidth
+              startIcon={<LockResetOutlined />}
+            >
+              Mot de passe oublié ?
+            </Button>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );

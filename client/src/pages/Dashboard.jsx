@@ -8,24 +8,29 @@ import {
   CircularProgress, Tooltip
 } from '@mui/material';
 import {
-  ReceiptLongOutlined, PersonOutlined, TrendingUpOutlined,
+  ReceiptLongOutlined, PersonOutlined,
   ArrowForwardOutlined, AccountBalanceOutlined, CalendarMonthOutlined,
   ChatBubbleOutlineOutlined, SendOutlined, EditOutlined, DeleteOutlined,
   CheckOutlined, CloseOutlined
 } from '@mui/icons-material';
 
-function StatCard({ icon, label, value, color, loading }) {
+const ACCENT_COLORS = { primary: '#7D3C00', success: '#2e7d32', secondary: '#C68B2E' };
+
+function StatCard({ label, value, color, loading, isCurrency }) {
   return (
-    <Card>
-      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2.5 }}>
-        <Box sx={{ width: 50, height: 50, borderRadius: 3, bgcolor: `${color}.50`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Box sx={{ color: `${color}.main` }}>{icon}</Box>
-        </Box>
-        <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 500, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Typography>
-          {loading ? <Skeleton width={80} height={28} /> : <Typography variant="h6">{value}</Typography>}
-        </Box>
+    <Card sx={{ position: 'relative', overflow: 'hidden' }}>
+      <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, bgcolor: ACCENT_COLORS[color] || ACCENT_COLORS.primary }} />
+      <CardContent sx={{ pl: 3, p: 2.5, '&:last-child': { pb: 2.5 } }}>
+        <Typography variant="caption" color="text.secondary"
+          sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.9, fontSize: 10, display: 'block' }}>
+          {label}
+        </Typography>
+        {loading
+          ? <Skeleton width={80} height={28} sx={{ mt: 0.5 }} />
+          : <Typography variant="h6" sx={{ mt: 0.5, fontFamily: isCurrency ? "'Playfair Display', serif" : undefined }}>
+              {value}
+            </Typography>
+        }
       </CardContent>
     </Card>
   );
@@ -120,8 +125,10 @@ export default function Dashboard() {
     <Box>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h5">Bonjour, {user?.prenom} 👋</Typography>
-        <Typography color="text.secondary">Bienvenue sur votre espace bulletins de salaire</Typography>
+        <Typography variant="h5">Bonjour, {user?.prenom}</Typography>
+        <Typography color="text.secondary" sx={{ fontSize: 14 }}>
+          {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        </Typography>
       </Box>
 
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
@@ -164,13 +171,13 @@ export default function Dashboard() {
         <Grid item xs={12} md={8}>
           <Grid container spacing={2} sx={{ mb: 2 }}>
             <Grid item xs={12} sm={4}>
-              <StatCard icon={<ReceiptLongOutlined />} label="Bulletins" value={loading ? '—' : total !== null ? total : payslips.length} color="primary" loading={loading} />
+              <StatCard label="Bulletins" value={loading ? '—' : total !== null ? total : payslips.length} color="primary" loading={loading} />
             </Grid>
             <Grid item xs={12} sm={4}>
-              <StatCard icon={<TrendingUpOutlined />} label="Dernier net" value={loading ? '—' : lastPayslip ? fmt(lastPayslip.salaire_net) : '—'} color="success" loading={loading} />
+              <StatCard label="Dernier net" value={loading ? '—' : lastPayslip ? fmt(lastPayslip.salaire_net) : '—'} color="success" loading={loading} isCurrency />
             </Grid>
             <Grid item xs={12} sm={4}>
-              <StatCard icon={<CalendarMonthOutlined />} label="Dernière période" value={loading ? '—' : lastPayslip ? `${lastPayslip.mois} ${lastPayslip.annee}` : '—'} color="secondary" loading={loading} />
+              <StatCard label="Dernière période" value={loading ? '—' : lastPayslip ? `${lastPayslip.mois} ${lastPayslip.annee}` : '—'} color="secondary" loading={loading} />
             </Grid>
           </Grid>
 
@@ -203,7 +210,8 @@ export default function Dashboard() {
                     </Box>
                   </Box>
                   <Box sx={{ textAlign: 'right' }}>
-                    <Typography fontWeight={700} color="success.main" fontSize={15}>{fmt(p.salaire_net)}</Typography>
+                    <Typography fontWeight={700} color="success.main" fontSize={15}
+                      sx={{ fontFamily: "'Playfair Display', serif" }}>{fmt(p.salaire_net)}</Typography>
                     {i === 0 && <Chip label="Dernier" size="small" color="primary" sx={{ height: 18, fontSize: 10 }} />}
                   </Box>
                 </Box>
