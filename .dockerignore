@@ -4,5 +4,4 @@ client/dist
 **/.git
 **/npm-debug.log
 server/pdf
-server/csv
 *.md
