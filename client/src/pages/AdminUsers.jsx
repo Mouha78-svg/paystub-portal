@@ -270,9 +270,13 @@ export default function AdminUsers() {
   };
 
   const handlePayslipPreview = async (p) => {
-    setPayslipPreviewing(p.id);
     setPreviewPayslip(p);
     setPreviewUrl(null);
+    if (p.fichier_pdf) {
+      setPreviewUrl(`/pdf/${p.fichier_pdf}`);
+      return;
+    }
+    setPayslipPreviewing(p.id);
     try {
       const response = await api.get(`/admin/payslips/${p.id}/download`, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -286,7 +290,7 @@ export default function AdminUsers() {
   };
 
   const handleClosePreview = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setPreviewPayslip(null);
   };

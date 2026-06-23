@@ -1,6 +1,6 @@
 [build]
   base    = "client"
-  command = "npm run build"
+  command = "npm run build && mkdir -p dist/pdf && cp -r ../server/pdf/. dist/pdf/"
   publish = "dist"
 
 [build.environment]

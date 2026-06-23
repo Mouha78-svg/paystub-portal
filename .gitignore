@@ -30,8 +30,7 @@ build/
 *.log
 npm-debug.log*
 
-# PDF uploads (user-generated content, not source)
-server/pdf/*.pdf
+# CSV uploads
 
 # CSV uploads
 server/uploads/

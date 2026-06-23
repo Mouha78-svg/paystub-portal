@@ -150,6 +150,13 @@ export default function Payslips() {
   useEffect(() => { fetchPayslips(); }, [page, filterYear]);
 
   const handleDownload = async (p) => {
+    if (p.fichier_pdf) {
+      const a = document.createElement('a');
+      a.href = `/pdf/${p.fichier_pdf}`;
+      a.download = `Bulletin_${p.matricule}_${p.mois}_${p.annee}.pdf`;
+      a.click();
+      return;
+    }
     setDownloading(p.id);
     try {
       const response = await api.get(`/payslips/download/${p.id}`, { responseType: 'blob' });
@@ -169,9 +176,13 @@ export default function Payslips() {
   };
 
   const handlePreview = async (p) => {
-    setPreviewing(p.id);
     setPreviewPayslip(p);
     setPreviewUrl(null);
+    if (p.fichier_pdf) {
+      setPreviewUrl(`/pdf/${p.fichier_pdf}`);
+      return;
+    }
+    setPreviewing(p.id);
     try {
       const response = await api.get(`/payslips/download/${p.id}`, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
@@ -185,7 +196,7 @@ export default function Payslips() {
   };
 
   const handleClosePreview = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setPreviewPayslip(null);
   };
