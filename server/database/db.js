@@ -183,7 +183,40 @@ async function initDB() {
     console.log(`   EMP003 mot de passe: Admin123!`);
   }
 
+  await setupRLS();
+
   console.log('✅ Base de données initialisée');
+}
+
+async function setupRLS() {
+  const tables = [
+    'employees',
+    'payslips',
+    'login_attempts',
+    'registration_requests',
+    'feedback',
+    'broadcasts',
+    'broadcast_reads',
+    'known_devices',
+  ];
+
+  for (const table of tables) {
+    await pool.query(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`);
+    // Drop then recreate to stay idempotent across server restarts
+    await pool.query(`DROP POLICY IF EXISTS "backend_full_access" ON ${table}`);
+    // Only service_role (Supabase dashboard/admin) gets direct API access.
+    // The Node.js backend connects as postgres (superuser) and bypasses RLS entirely.
+    // anon and authenticated roles are implicitly denied — no policy = no access.
+    await pool.query(`
+      CREATE POLICY "backend_full_access" ON ${table}
+        FOR ALL
+        TO service_role
+        USING (true)
+        WITH CHECK (true)
+    `);
+  }
+
+  console.log('✅ RLS activé sur toutes les tables');
 }
 
 module.exports = { pool, initDB };
