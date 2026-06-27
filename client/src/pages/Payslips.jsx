@@ -20,7 +20,8 @@ const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août'
 function PayslipRow({ p, onDownload, downloading, onPreview, previewing }) {
   const [expanded, setExpanded] = useState(false);
   const fmt = n => new Intl.NumberFormat('fr-SN', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0 }).format(n);
-  const pct = ((1 - p.salaire_net / p.salaire_brut) * 100).toFixed(1);
+  const pctNum = (1 - p.salaire_net / p.salaire_brut) * 100;
+  const pctLabel = pctNum >= 0 ? `-${pctNum.toFixed(1)}%` : `+${Math.abs(pctNum).toFixed(1)}%`;
 
   return (
     <>
@@ -41,7 +42,7 @@ function PayslipRow({ p, onDownload, downloading, onPreview, previewing }) {
           <Typography fontWeight={700} color="success.main" sx={{ fontFamily: "'Playfair Display', serif" }}>{fmt(p.salaire_net)}</Typography>
         </TableCell>
         <TableCell>
-          <Chip label={`-${pct}%`} size="small" color="warning" variant="outlined" />
+          <Chip label={pctLabel} size="small" color="warning" variant="outlined" />
         </TableCell>
         <TableCell align="right">
           <Tooltip title="Aperçu du bulletin">
@@ -74,7 +75,7 @@ function PayslipRow({ p, onDownload, downloading, onPreview, previewing }) {
                   { label: 'Salaire brut', value: fmt(p.salaire_brut), color: 'text.primary' },
                   { label: 'CNSS (5.7%)', value: `− ${fmt(p.salaire_brut * 0.057)}`, color: 'error.main' },
                   { label: 'IPRES (5.6%)', value: `− ${fmt(p.salaire_brut * 0.056)}`, color: 'error.main' },
-                  { label: 'Autres retenues', value: `− ${fmt(p.salaire_brut - p.salaire_net - p.salaire_brut * 0.113)}`, color: 'error.main' },
+                  (() => { const v = p.salaire_brut - p.salaire_net - p.salaire_brut * 0.113; return { label: 'Autres retenues', value: v >= 0 ? `− ${fmt(v)}` : `+ ${fmt(Math.abs(v))}`, color: v >= 0 ? 'error.main' : 'success.main' }; })(),
                   { label: 'Net à payer', value: fmt(p.salaire_net), color: 'success.main', serif: true },
                 ].map(item => (
                   <Grid item xs={6} sm={4} key={item.label}>
