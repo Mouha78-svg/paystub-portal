@@ -1,0 +1,7 @@
+client/
+server/pdf/
+server/csv/
+*.pdf
+*.PDF
+node_modules/
+.git/
