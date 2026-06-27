@@ -25,6 +25,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/', limiter);
 
+// Serve PDF files (must be before API routes and rate limiter)
+const pdfDir = path.resolve(process.env.PDF_DIR || './pdf');
+app.use('/pdf', express.static(pdfDir));
+
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/payslips', require('./routes/payslips'));

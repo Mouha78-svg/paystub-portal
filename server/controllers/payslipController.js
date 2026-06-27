@@ -22,7 +22,7 @@ exports.getAll = async (req, res, next) => {
       countQuery += ` AND annee=$2`;
     }
 
-    query += ` ORDER BY annee DESC, mois DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    query += ` ORDER BY annee DESC, CASE mois WHEN 'Janvier' THEN 1 WHEN 'Février' THEN 2 WHEN 'Mars' THEN 3 WHEN 'Avril' THEN 4 WHEN 'Mai' THEN 5 WHEN 'Juin' THEN 6 WHEN 'Juillet' THEN 7 WHEN 'Août' THEN 8 WHEN 'Septembre' THEN 9 WHEN 'Octobre' THEN 10 WHEN 'Novembre' THEN 11 WHEN 'Décembre' THEN 12 ELSE 0 END DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), parseInt(offset));
 
     const [{ rows }, { rows: countRows }] = await Promise.all([
@@ -43,7 +43,7 @@ exports.getByMatricule = async (req, res, next) => {
     if (req.user.matricule !== matricule) return res.status(403).json({ message: 'Accès refusé' });
 
     const { rows } = await pool.query(
-      'SELECT * FROM payslips WHERE matricule=$1 ORDER BY annee DESC, mois DESC',
+      `SELECT * FROM payslips WHERE matricule=$1 ORDER BY annee DESC, CASE mois WHEN 'Janvier' THEN 1 WHEN 'Février' THEN 2 WHEN 'Mars' THEN 3 WHEN 'Avril' THEN 4 WHEN 'Mai' THEN 5 WHEN 'Juin' THEN 6 WHEN 'Juillet' THEN 7 WHEN 'Août' THEN 8 WHEN 'Septembre' THEN 9 WHEN 'Octobre' THEN 10 WHEN 'Novembre' THEN 11 WHEN 'Décembre' THEN 12 ELSE 0 END DESC`,
       [matricule]
     );
     res.json(rows);
